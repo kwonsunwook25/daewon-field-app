@@ -112,7 +112,7 @@ export default function FieldManagerApp() {
     return Number(String(str).replace(/,/g, '')) || 0;
   };
 
-  // 로그인 인증 로직
+  // 로그인 인증
   const handleLoginSubmit = (e) => {
     e.preventDefault();
     const account = userRoster.find(u => u.loginId === loginId.trim());
@@ -139,7 +139,7 @@ export default function FieldManagerApp() {
     setIsLoggedIn(false); setCurrentUser(null); setLoginId(''); setLoginPassword(''); setSecurityAuthCode(''); setActiveTab('daily'); setActiveSiteId('');
   };
 
-  // 계정 및 인프라 생성 로직들
+  // 인프라 생성 부품들
   const handleCreateUser = (e) => {
     e.preventDefault();
     const newUser = { id: `user-${Date.now()}`, loginId: newUserId.trim(), name: newUserName.trim(), role: newUserRole, password: newUserPassword, authKey: newUserAuthKey.trim() };
@@ -229,14 +229,42 @@ export default function FieldManagerApp() {
           setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { ...w, timeSlots: w.timeSlots.filter(s => s.siteId !== activeSiteId) } : w));
         }
       } else {
-        setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { ...w, timeSlots: [...w.timeSlots, { slotId: `slot-${Date.now()}`, corp: targetSiteObj.corp, siteId: targetSiteObj.id, constType: targetSiteObj.constType, baseHours: 8, otHours: 0 }] } : w));
+        // 🎯 추가할 때도 기본 주간 근무시간 제한 체크 (다른 현장 총합 검수)
+        const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
+        const remainingHours = 8 - currentTotalBase;
+        const initialSlotBase = remainingHours > 0 ? remainingHours : 0; // 남은 시간만큼만 기본 배정, 없으면 0
+
+        setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { 
+          ...w, 
+          timeSlots: [...w.timeSlots, { slotId: `slot-${Date.now()}`, corp: targetSiteObj.corp, siteId: targetSiteObj.id, constType: targetSiteObj.constType, baseHours: initialSlotBase, otHours: 0 }] 
+        } : w));
       }
     } else {
       setTodayActiveWorkers([...todayActiveWorkers, { ...worker, healthOk: false, signatureUrl: null, timeSlots: [{ slotId: `slot-${Date.now()}`, corp: targetSiteObj.corp, siteId: targetSiteObj.id, constType: targetSiteObj.constType, baseHours: 8, otHours: 0 }] }]);
     }
   };
 
+  // 🎯 [핵심 개포 통합 수리부] 주간 근무 시간 하루 총합 8H 제한 검증 안전 장치 가동
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
+    if (field === 'baseHours') {
+      // 1. 해당 대상 반장님의 기존 전산 상태값 추적
+      const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
+      if (targetWorker) {
+        // 2. '현재 수정 중인 현장'을 제외한 다른 현장들의 주간 공사 시간만 필터링하여 합산 구하기
+        const otherSlotsTotalBase = targetWorker.timeSlots
+          .filter(s => s.siteId !== siteId)
+          .reduce((sum, s) => sum + s.baseHours, 0);
+        
+        // 3. [다른 현장 합산 + 지금 소장님이 친 숫자] 가 8H 한계선을 돌파하는지 검증
+        if (otherSlotsTotalBase + numValue > 8) {
+          const maxAllowable = 8 - otherSlotsTotalBase;
+          alert(`⚠️ [출역 오폭 입력 차단 - 8시간 자동 락]\n\n'${targetWorker.name}' 근로자는 이미 다른 현장에서 주간 ${otherSlotsTotalBase}시간이 기입되어 있습니다.\n오늘 추가로 입력 가능한 주간 최대 근로시간은 [${maxAllowable}시간] 입니다.`);
+          return; // 함수 강제 종료 ➔ 전산 입력 튕겨내기 (락 발동 🔒)
+        }
+      }
+    }
+    
+    // 검증을 무사히 통과했거나 연장 시간(otHours)인 경우 정상 값 업데이트 진행
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
   };
 
@@ -266,32 +294,7 @@ export default function FieldManagerApp() {
   const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
 
-  // 로그인 화면 게이트웨이
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-          <div className="text-center"><h2 className="text-xl font-black text-slate-900">⚡ 대원 통합 전산인프라</h2></div>
-          {!isSecondStep ? (
-            <form onSubmit={handleLoginSubmit} className="space-y-3">
-              <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginId} onChange={e => setLoginId(e.target.value)} />
-              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-              <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl">1차 자격 검증</button>
-            </form>
-          ) : (
-            <form onSubmit={handleAuthKeySubmit} className="space-y-3">
-              <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser.name}</div>
-              <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
-              <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl">2차 최종 승인</button>
-            </form>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    // 🎯 [와이드 해제 복구] max-w-md 제한을 풀고 와이드 모니터 규격(max-w-7xl)으로 확장 대개편!
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl">
       
       {/* 최고 등급 세션 바 */}
@@ -417,21 +420,12 @@ export default function FieldManagerApp() {
           </div>
         )}
 
-        {/* 🎯 일보 구역 레이아웃 와이드 전면 최적화 분기 */}
+        {/* 일보 구역 레이아웃 와이드  */}
         {activeTab === 'daily' && (
           <div className="space-y-4">
-            {/* 마스터 전용 종합 관제 상단 알림 바 */}
-            {currentUser.role === 'master' && (
-              <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-blue-900 text-white p-4 rounded-2xl shadow-md text-center border border-blue-800/60 max-w-4xl mx-auto animate-fade-in">
-                <div className="text-sm font-black text-blue-300 flex justify-center items-center gap-1.5">📡 전사 실시간 출역 다차원 기성 합산 관제 포털 가동 중</div>
-                <p className="text-xs text-slate-300 mt-1">현장관리자들이 제출한 다중 분할 타임슬롯 정산 원가가 실시간 취합되며, 백엔드 마스터 데이터 보호를 위해 읽기전용(Read-Only)으로 제어됩니다.</p>
-              </div>
-            )}
-
-            {/* 🎯 [개편의 정수] 큰 화면에서 좌우 2분할(Grid)로 가로 배치 가동!! */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
-              {/* 왼쪽 섹션 (소장님 조작용 현장 선택 및 반장님 터치 패널) — 가로 5칸 차지 */}
+              {/* 왼쪽 섹션 (소장님 조작용 현장 선택 및 반장님 터치 패널) */}
               {currentUser.role !== 'master' && (
                 <div className="lg:col-span-5 space-y-4 animate-fade-in">
                   <section className="bg-gradient-to-br from-blue-950 to-slate-900 text-white p-5 rounded-3xl shadow-md space-y-3 border border-slate-800">
@@ -469,13 +463,12 @@ export default function FieldManagerApp() {
                 </div>
               )}
 
-              {/* 오른쪽 섹션 (선택된 인원 시간 입력창 및 마스터 관제 뷰어) — 와이드하게 나머지 칸 전부 차지 */}
+              {/* 오른쪽 섹션 (선택된 인원 시간 입력창 및 마스터 관제 뷰어) */}
               <div className={`${currentUser.role === 'master' ? 'lg:col-span-12 max-w-5xl mx-auto w-full' : 'lg:col-span-7'} space-y-3`}>
                 <div className="bg-slate-200/60 rounded-2xl px-2 py-1 text-xs font-black text-slate-500 tracking-wider">
                   {currentUser.role === 'master' ? '📊 전사 실시간 분할 안분 취합 현황부' : '3단계: 투입 근로자별 시간 기입 및 최종 확인 구역'}
                 </div>
 
-                {/* 인원 카드 뷰 프레임 (와이드 모드 시 가로로 넓게 분출되어 눈이 아주 편안합니다) */}
                 <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
                   {todayActiveWorkers.map(worker => {
                     if (currentUser.role !== 'master' && !worker.timeSlots.some(s => s.siteId === activeSiteId)) return null;
@@ -488,10 +481,10 @@ export default function FieldManagerApp() {
                             <span className="text-lg font-black text-slate-900 mr-2">{worker.name}</span>
                             <span className="text-xs text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-md">원천소속: {worker.corp} | {worker.type}</span>
                           </div>
-                          {currentUser.role !== 'master' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
+                          {currentUser.role !== 'manager' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
                         </div>
 
-                        {/* 타임슬롯 카드 와이드 확장 배열 */}
+                        {/* 타임슬롯 카드 확장 배열 */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {worker.timeSlots.map((slot, sIdx) => {
                             const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
@@ -510,18 +503,29 @@ export default function FieldManagerApp() {
                                     <span className="text-blue-700 font-black">정산노임: {calc.slots[sIdx]?.grossPay.toLocaleString()}원</span>
                                   </div>
                                 ) : (
-                                  slot.siteId === activeSiteId && (
-                                    <div className="grid grid-cols-2 gap-2 pt-0.5">
-                                      <div>
-                                        <label className="block text-[9px] text-slate-400 font-bold mb-0.5">주간 공사 시간</label>
-                                        <input type="number" className="w-full text-center text-xs font-black bg-white border rounded-lg p-2 outline-none focus:border-blue-500" value={slot.baseHours} onChange={e => handleUpdateSlotHours(worker.id, activeSiteId, 'baseHours', Number(e.target.value))} />
-                                      </div>
-                                      <div>
-                                        <label className="block text-[9px] text-slate-400 font-bold mb-0.5">연장 공사 시간</label>
-                                        <input type="number" className="w-full text-center text-xs font-black bg-white border rounded-lg p-2 outline-none focus:border-blue-500" value={slot.otHours} onChange={e => handleUpdateSlotHours(worker.id, activeSiteId, 'otHours', Number(e.target.value))} />
-                                      </div>
+                                  // 🎯 [락 필터 연동 개편] 수리된 handleUpdateSlotHours 연동 바인딩
+                                  <div className="grid grid-cols-2 gap-2 pt-0.5">
+                                    <div>
+                                      <label className="block text-[9px] text-slate-400 font-bold mb-0.5">주간 공사 시간</label>
+                                      <input 
+                                        type="number" min={0} max={8}
+                                        disabled={slot.siteId !== activeSiteId}
+                                        className={`w-full text-center text-xs font-black border rounded-lg p-2 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
+                                        value={slot.baseHours} 
+                                        onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} 
+                                      />
                                     </div>
-                                  )
+                                    <div>
+                                      <label className="block text-[9px] text-slate-400 font-bold mb-0.5">연장 공사 시간</label>
+                                      <input 
+                                        type="number" min={0} max={24}
+                                        disabled={slot.siteId !== activeSiteId}
+                                        className={`w-full text-center text-xs font-black border rounded-lg p-2 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
+                                        value={slot.otHours} 
+                                        onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} 
+                                      />
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             );
@@ -539,9 +543,6 @@ export default function FieldManagerApp() {
                       </div>
                     );
                   })}
-                  {todayActiveWorkers.length === 0 && (
-                    <div className="bg-white rounded-3xl p-12 text-center text-slate-400 border border-dashed font-bold">오늘 출역 일보에 투입 정산된 인원이 없습니다.</div>
-                  )}
                 </div>
               </div>
 
@@ -550,17 +551,13 @@ export default function FieldManagerApp() {
         )}
       </main>
 
-      {/* ========================================================= */}
-      {/* 🎯 [스크린샷 구간 전면 개편] 하단 3중 파노라마 와이드 대시보드 바 */}
-      {/* ========================================================= */}
+      {/* 하단 집계 및 3중 파노라마 대시보드 바 */}
       {activeTab === 'daily' && todayActiveWorkers.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur border-t shadow-[0_-12px_30px_rgba(0,0,0,0.08)] roaring-dashboard z-30">
-          {/* 와이드 규격 해제 확장을 위해 max-w-6xl 설계 적용 */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur border-t shadow-[0_-12px_30px_rgba(0,0,0,0.08)] z-30">
           <div className="max-w-6xl mx-auto space-y-3">
             
             {currentUser.role === 'master' ? (
               <div className="space-y-2.5 animate-fade-in">
-                {/* 1층: 시계열 가동 누적 기간 긴 보드 (가로로 시원하게 배열 마감) */}
                 <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white px-4 py-2 rounded-2xl text-xs font-mono flex justify-between items-center shadow-md border border-slate-800/80">
                   <div className="flex items-center gap-1.5"><span className="text-blue-400 font-black">🗓️</span> <span className="text-slate-400 font-bold">전산망 역대 총 누적 기성 집계 기간:</span></div>
                   <span className="text-yellow-400 font-black text-xs tracking-wider bg-black/40 px-3 py-1 rounded-lg border border-slate-800">
@@ -568,9 +565,7 @@ export default function FieldManagerApp() {
                   </span>
                 </div>
 
-                {/* 2층: 좌측 법인별 안분표와 우측 현장별 기성 합산표를 가로로 넓게 5:5 배치!! */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 가. 법인별 당일 안분 보드 */}
                   <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-xs font-mono space-y-1 max-h-28 overflow-y-auto shadow-inner">
                     <div className="font-black text-slate-400 pb-1 border-b uppercase tracking-wider flex justify-between"><span>🏢 오늘 소속 법인별 원가 안분 현황</span><span className="text-blue-600">[당일 발생액]</span></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pt-1">
@@ -586,7 +581,6 @@ export default function FieldManagerApp() {
                     </div>
                   </div>
 
-                  {/* 나. 각 현장별 인건비 금일 / 역대 총 누적 합산 파노라마 보드 */}
                   <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-2xl text-xs font-mono space-y-1 max-h-28 overflow-y-auto shadow-inner">
                     <div className="font-black text-blue-900 pb-1 border-b uppercase tracking-wider flex justify-between">
                       <span>📍 각 현장별 인건비 기성 합산 현황부</span>
@@ -617,7 +611,6 @@ export default function FieldManagerApp() {
               <div className="text-center text-xs font-bold text-slate-400 bg-slate-50 p-3 rounded-2xl border border-dashed">🔒 상세 인건비 기성 및 다중 분할 내역 통계 비공개 (MASTER ONLY)</div>
             )}
 
-            {/* 마감 확정 버튼 바 */}
             <div className="max-w-md mx-auto pt-1">
               <button onClick={() => alert("📢 최종 전산 확정: 당일 발생 안분 및 역대 누적 적산 데이터가 ERP 연동망에 격리 보관되었습니다.")} className="w-full bg-blue-800 text-white font-black text-sm py-4 rounded-xl shadow-xl hover:bg-blue-900 hover:shadow-2xl transition-all tracking-wide">
                 {currentUser.role === 'master' ? `👑 243제 최종 마감 및 관제 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 마감 전송'}
