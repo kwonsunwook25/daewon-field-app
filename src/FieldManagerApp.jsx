@@ -70,7 +70,7 @@ export default function FieldManagerApp() {
   const [activeSiteId, setActiveSiteId] = useState('');
   const [isZoomDashboardOpen, setIsZoomDashboardOpen] = useState(false);
 
-  // 실시간 출역 명단 데이터셋 (매핑 식별값 s-1, s-2 완벽 일치 구조화)
+  // 실시간 출역 명단 데이터셋
   const [todayActiveWorkers, setTodayActiveWorkers] = useState([
     {
       id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000, healthOk: true, signatureUrl: 'done',
@@ -131,7 +131,7 @@ export default function FieldManagerApp() {
 
   const handleAuthKeySubmit = (e) => {
     e.preventDefault();
-    if (currentUser.authKey === securityAuthCode.trim()) {
+    if (currentUser && currentUser.authKey === securityAuthCode.trim()) {
       setIsLoggedIn(true);
       setIsSecondStep(false);
     } else {
@@ -212,7 +212,6 @@ export default function FieldManagerApp() {
         }
       } else {
         const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
-        // 🎯 [하얀화면 결착 수리 지점 1] const 지정을 누락 없이 확실하게 명시하여 빌드 다운 현상 완전 퇴치!!
         const remainingHours = 8 - currentTotalBase;
         const initialSlotBase = remainingHours > 0 ? remainingHours : 0;
 
@@ -245,33 +244,11 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
   };
 
-  // 대시보드 안분 집계 파서
-  const getDichotomySummary = () => {
-    const corpMap = {}; CORPORATIONS.forEach(c => { corpMap[c] = 0; });
-    const siteDailyMap = {}; 
-    const siteTotalAccumMap = { ...historyConfig.pastAccumulatedSiteLogs }; 
-    let totalGross = 0; let totalNet = 0;
-    
-    todayActiveWorkers.forEach(w => {
-      const calc = calculateDetailedWage(w); totalNet += calc.netPay;
-      calc.slots.forEach(s => {
-        if (corpMap[s.corp] !== undefined) { corpMap[s.corp] += s.grossPay; totalGross += s.grossPay; }
-        if (s.siteId) {
-          if (!siteDailyMap[s.siteId]) siteDailyMap[s.siteId] = 0;
-          siteDailyMap[s.siteId] += s.grossPay;
-          if (!siteTotalAccumMap[s.siteId]) siteTotalAccumMap[s.siteId] = 0;
-          siteTotalAccumMap[s.siteId] += s.grossPay;
-        }
-      });
-    });
-    return { corpMap, siteDailyMap, siteTotalAccumMap, totalGross, totalNet };
-  };
-
   const finalSummary = getDichotomySummary();
   const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
 
-  // 🎯 [하얀화면 결착 수리 지점 2] 첫 로그인 진입 게이트웨이 화면 렌더링 무결성 확인
+  // 🎯 [하얀화면 결착 핵심수리 지점] 1차 자격 검증창 게이트웨이 완전 격리 검증
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -280,12 +257,12 @@ export default function FieldManagerApp() {
           {!isSecondStep ? (
             <form onSubmit={handleLoginSubmit} className="space-y-3">
               <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={loginId} onChange={e => setLoginId(e.target.value)} />
-              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={loginPassword} onChange={e => loginPassword !== e.target.value && setLoginPassword(e.target.value)} />
+              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
               <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl shadow-md">1차 자격 검증</button>
             </form>
           ) : (
             <form onSubmit={handleAuthKeySubmit} className="space-y-3">
-              <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser.name}</div>
+              <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser?.name || '임시인증'}</div>
               <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest outline-none" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
               <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl shadow-md">2차 최종 승인</button>
             </form>
@@ -298,14 +275,14 @@ export default function FieldManagerApp() {
   return (
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl px-2 sm:px-4 md:px-6">
       
-      {/* 최고 등급 세션 바 */}
+      {/* 최고 등급 세션 바 (🎯 안전벨트 currentUser?.name 세팅 완료로 크래시 종결) */}
       <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-6 rounded-b-xl shadow-md">
         <div className="truncate max-w-[70%]">
           <span className="text-emerald-400 font-black text-[10px] sm:text-xs">● 전산망 보안 가동:</span>{' '}
           <span className="font-bold text-yellow-400 text-xs sm:text-sm truncate">
-            {currentUser.name} 
-            {currentUser.loginId === 'sunwook' ? ' [현장총괄 - MASTER]' : 
-             currentUser.loginId === 'soyoung' ? ' [재무총괄]' : ` [${currentUser.role.toUpperCase()}]`}
+            {currentUser?.name || '미인증'} 
+            {currentUser?.loginId === 'sunwook' ? ' [현장총괄 - MASTER]' : 
+             currentUser?.loginId === 'soyoung' ? ' [재무총괄]' : currentUser ? ` [${currentUser.role.toUpperCase()}]` : ''}
           </span>
         </div>
         <button onClick={handleLogout} className="bg-red-950 text-red-400 border border-red-900 text-[10px] sm:text-xs px-2.5 py-1 rounded-xl font-bold hover:bg-red-900 transition-all shrink-0">로그아웃</button>
@@ -316,7 +293,7 @@ export default function FieldManagerApp() {
           <button onClick={() => setActiveTab('daily')} className={`flex-1 text-center py-2.5 rounded-lg transition-all min-w-[75px] ${activeTab === 'daily' ? 'bg-blue-600 text-white shadow' : 'text-slate-400'}`}>
             {isFinanceAccessible ? '📋 관제부' : '📝 일보작성'}
           </button>
-          {currentUser.role !== 'manager' && (
+          {currentUser?.role !== 'manager' && (
             <>
               <button onClick={() => setActiveTab('siteAdmin')} className={`flex-1 text-center py-2.5 rounded-lg transition-all min-w-[75px] ${activeTab === 'siteAdmin' ? 'bg-blue-600 text-white shadow' : 'text-slate-400'}`}>🏢 현장등록</button>
               <button onClick={() => setActiveTab('admin')} className={`flex-1 text-center py-2.5 rounded-lg transition-all min-w-[75px] ${activeTab === 'admin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>➕ 인력관리</button>
@@ -354,7 +331,7 @@ export default function FieldManagerApp() {
         )}
 
         {/* 현장 개설 */}
-        {activeTab === 'siteAdmin' && currentUser.role !== 'manager' && (
+        {activeTab === 'siteAdmin' && currentUser?.role !== 'manager' && (
           <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
             <section className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border space-y-3">
               <h2 className="text-xs sm:text-sm font-extrabold text-slate-800">🏢 신규 현장 개설 등록부</h2>
@@ -381,7 +358,7 @@ export default function FieldManagerApp() {
         )}
 
         {/* 인력 관리 */}
-        {activeTab === 'admin' && currentUser.role !== 'manager' && (
+        {activeTab === 'admin' && currentUser?.role !== 'manager' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start animate-fade-in">
             <section className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border space-y-3">
               <h2 className="text-xs sm:text-sm font-extrabold text-slate-800">👤 근로자 개별 수동 등록</h2>
