@@ -69,6 +69,18 @@ export default function FieldManagerApp() {
   const [isSignatureOpen, setIsSignatureOpen] = useState(false);
   const [currentWorker, setCurrentWorker] = useState(null);
 
+  // 💡 금액에 컴마 즉시 부착기
+  const formatNumberWithCommas = (value) => {
+    if (!value) return '';
+    const cleanNumber = String(value).replace(/[^0-9]/g, ''); 
+    return cleanNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ','); 
+  };
+
+  // 💡 계산식용 컴마 제거기
+  const removeCommas = (str) => {
+    return Number(String(str).replace(/,/g, '')) || 0;
+  };
+
   // 현장 등록 함수
   const handleAddSite = (e) => {
     e.preventDefault();
@@ -151,8 +163,8 @@ export default function FieldManagerApp() {
       alert("기본 계약 정보를 빠짐없이 입력해 주세요.");
       return;
     }
-    const wageNum = Number(adminWageInput);
-    const allowanceNum = Number(adminAllowanceInput) || 0;
+    const wageNum = removeCommas(adminWageInput);
+    const allowanceNum = removeCommas(adminAllowanceInput);
 
     const newWorker = {
       id: `admin-${Date.now()}`,
@@ -176,8 +188,8 @@ export default function FieldManagerApp() {
       alert("성명과 급여 단가는 필수 항목입니다.");
       return;
     }
-    const wageNum = Number(editingWorker.wageInput);
-    const allowanceNum = Number(editingWorker.specialAllowance) || 0;
+    const wageNum = removeCommas(editingWorker.wageInput);
+    const allowanceNum = removeCommas(editingWorker.specialAllowance);
 
     const updatedWorker = {
       id: editingWorker.id, corp: editingWorker.corp, constType: editingWorker.constType,
@@ -198,7 +210,7 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
-  // 🎯 [완전 무결화] 데이터 맹목적 추적형 엑셀 업로드 파서
+  // 엑셀 업로드 파서
   const handleExcelUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -208,16 +220,11 @@ export default function FieldManagerApp() {
         const data = new Uint8Array(event.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        
-        // 💡 헤더 명칭 매칭이 터지는 현상을 막기 위해 배열 형태로 raw 데이터를 직접 추출
         const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        if (rawRows.length <= 1) return alert("데이터가 비어있거나 올바른 형식이 아닙니다.");
+        if (rawRows.length <= 1) return alert("데이터가 비어있습니다.");
 
-        // 첫 번째 행은 제목 행으로 파악
         const headers = (rawRows[0] || []).map(h => String(h || '').replace(/\s+/g, ''));
-        
-        // 데이터 정밀 추적 인덱스 찾기
         const nameIdx = headers.findIndex(h => h.includes('성명') || h.includes('이름') || h.includes('성함') || h.includes('근로자'));
         const corpIdx = headers.findIndex(h => h.includes('법인') || h.includes('소속') || h.includes('회사'));
         const constIdx = headers.findIndex(h => h.includes('공종') || h.includes('공사') || h.includes('종류'));
@@ -227,62 +234,43 @@ export default function FieldManagerApp() {
 
         const uploadedWorkers = [];
 
-        // 2번째 줄부터 실 데이터 강제 추출 루프
         for (let i = 1; i < rawRows.length; i++) {
           const row = rawRows[i];
           if (!row || row.length === 0) continue;
 
-          // 1. [이름 추적] 정밀 인덱스가 밀렸을 경우를 대비해 행에서 최초로 발견되는 온전한 한글/영문 텍스트 강제 빌려오기 예외처리
           let name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
           if (!name) {
-            // 이름 컬럼을 못 찾았으면 해당 행에서 2~4글자짜리 첫 한글 문자열을 이름으로 강제 간주
             const backupText = row.find(val => val && typeof val === 'string' && val.trim().length >= 2 && val.trim().length <= 5);
             name = backupText ? backupText.trim() : '';
           }
 
-          // 이름이 아예 안 나오는 빈 행은 데이터 수집 패스
           if (!name || name.includes('성명') || name.includes('이름')) continue;
 
-          // 2. 소속 법인 바인딩
           let corp = corpIdx !== -1 ? String(row[corpIdx] || '').trim() : '';
-          // 유저 편의를 위해 입력된 법인이 리스트에 없으면 가장 유사한 법인 강제 매칭
           const matchedCorp = CORPORATIONS.find(c => corp && c.includes(corp.replace(/\s+/g, ''))) || CORPORATIONS[0];
 
-          // 3. 공종 바인딩
           let constType = constIdx !== -1 ? String(row[constIdx] || '').trim() : '';
           if (["내선전기", "전문소방", "구내통신"].includes(constType)) constType = "내선공사";
           const matchedConstType = CONSTRUCTION_TYPES.find(t => constType && t.includes(constType.replace(/\s+/g, ''))) || CONSTRUCTION_TYPES[0];
 
-          // 4. 근무 형태 바인딩
           const rawType = typeIdx !== -1 ? String(row[typeIdx] || '') : '';
           const type = rawType.includes('일용') ? '일용직' : '정규직';
 
-          // 5. 급여 및 특별 수당 숫자 강제 서치
-          const baseWage = wageIdx !== -1 ? Number(row[wageIdx] || 0) : 0;
-          const allowance = allowanceIdx !== -1 ? Number(row[allowanceIdx] || 0) : 0;
+          const rawWageVal = wageIdx !== -1 ? String(row[wageIdx] || '0') : '0';
+          const rawAllowanceVal = allowanceIdx !== -1 ? String(row[allowanceIdx] || '0') : '0';
+          const baseWage = Number(rawWageVal.replace(/,/g, '')) || 0;
+          const totalAllowance = Number(rawAllowanceVal.replace(/,/g, '')) || 0;
 
           uploadedWorkers.push({
             id: `excel-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
-            name: name,
-            corp: matchedCorp,
-            constType: matchedConstType,
-            type: type,
-            specialAllowance: allowance,
+            name: name, corp: matchedCorp, constType: matchedConstType, type: type, specialAllowance: totalAllowance,
             ...(type === '정규직' ? { annualSalary: baseWage } : { hourlyWage: baseWage })
           });
         }
 
-        if (uploadedWorkers.length === 0) {
-          alert("⚠️ 엑셀 파일 분석은 완료되었으나 유효한 근로자 성명을 추출하지 못했습니다. 첫 행에 '성명' 혹은 '이름' 타이틀이 있는지 확인하세요.");
-          return;
-        }
-
         setMasterWorkerPool([...masterWorkerPool, ...uploadedWorkers]);
-        alert(`📊 [마스터 엔진 최적화 대성공]\n어떤 엑셀 서식이든 강제로 우회 추적하여 총 ${uploadedWorkers.length}명의 근로자 성명과 급여를 완벽하게 정상 등록했습니다!`);
-      } catch (error) { 
-        console.error(error);
-        alert("⚠️ 엑셀 분석 중 오류가 발생했습니다."); 
-      }
+        alert(`📊 총 ${uploadedWorkers.length}명의 근로자가 대량 등록되었습니다!`);
+      } catch (error) { alert("⚠️ 엑셀 분석 실패"); }
     };
     reader.readAsArrayBuffer(file);
   };
@@ -438,13 +426,23 @@ export default function FieldManagerApp() {
                 </div>
                 <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
                   <div>
-                    <label className="block text-[10px] text-slate-400 font-bold mb-1">{adminWorkerType === '정규직' ? '💡 총 계약 연봉금액 입력 (예: 48000000)' : '💡 약정 통상 시급 입력'}</label>
-                    <input type="number" placeholder={adminWorkerType === '정규직' ? "예: 48000000" : "예: 18000"} className="w-full bg-white border rounded-xl p-2.5 text-xs font-bold outline-none" value={adminWageInput} onChange={e => setAdminWageInput(e.target.value)} />
+                    <label className="block text-[10px] text-slate-400 font-bold mb-1">💡 총 계약 연봉금액 입력 (자동 컴마)</label>
+                    <input 
+                      type="text" placeholder={adminWorkerType === '정규직' ? "예: 48,000,000" : "예: 18,000"} 
+                      className="w-full bg-white border rounded-xl p-2.5 text-xs font-bold outline-none text-right pr-4" 
+                      value={adminWageInput} 
+                      onChange={e => setAdminWageInput(formatNumberWithCommas(e.target.value))} 
+                    />
                   </div>
                   {adminWorkerType === '정규직' && (
                     <div>
-                      <label className="block text-[10px] text-blue-500 font-bold mb-1">💡 매월 고정 특별수당 / 직책수당 입력</label>
-                      <input type="number" placeholder="예: 매월 300000" className="w-full bg-white border rounded-xl p-2.5 text-xs font-bold outline-none" value={adminAllowanceInput} onChange={e => setAdminAllowanceInput(e.target.value)} />
+                      <label className="block text-[10px] text-blue-500 font-bold mb-1">💡 매월 고정 특별수당 / 직책수당 입력 (자동 컴마)</label>
+                      <input 
+                        type="text" placeholder="예: 300,000" 
+                        className="w-full bg-white border rounded-xl p-2.5 text-xs font-bold outline-none text-right pr-4 focus:border-blue-500" 
+                        value={adminAllowanceInput} 
+                        onChange={e => setAdminAllowanceInput(formatNumberWithCommas(e.target.value))} 
+                      />
                     </div>
                   )}
                   <div className="pt-1"><button type="submit" className="w-full bg-slate-900 text-white text-xs py-3 rounded-xl font-bold hover:bg-slate-800">등록 완료</button></div>
@@ -460,8 +458,8 @@ export default function FieldManagerApp() {
                   return (
                     <div key={w.id} className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border">
                       <div><span className="font-black text-slate-900 mr-1">{w.name} <span className="text-[9px] text-slate-400 font-normal">({w.constType})</span></span><span className="text-[10px] text-slate-400 block">{w.corp}</span></div>
-                      <div className="flex items-center gap-1.5"><span className="text-[10px] font-bold text-blue-600 mr-1">{calculatedRate.toLocaleString()}원</span>
-                        <button onClick={() => setEditingWorker({...w, wageInput: w.type === '정규직' ? w.annualSalary : w.hourlyWage})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>
+                      <div className="flex items-center gap-1.5"><span className="text-[10px] font-bold text-blue-600 mr-1">시급: {calculatedRate.toLocaleString()}원</span>
+                        <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>
                         <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded font-black text-[10px]">삭제</button>
                       </div>
                     </div>
@@ -618,7 +616,7 @@ export default function FieldManagerApp() {
                         <div className="bg-slate-50 p-2.5 rounded-xl border text-xs space-y-2">
                           <label className="flex justify-between items-center cursor-pointer">
                             <span className={worker.healthOk ? 'text-slate-600 font-bold' : 'text-red-500 font-black'}>🩺 당일 건강 상태 정상 여부</span>
-                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" checked={worker.healthOk} onChange={() => setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? {...w, healthOk: !w.healthOk} : w))} />
+                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" checked={worker.healthOk} onChange={() => abolitionToggleHealthCheck(worker.id)} />
                           </label>
                           <div className="flex justify-between items-center pt-1.5 border-t">
                             <span className={worker.signatureUrl ? 'text-blue-700 font-black' : 'text-slate-500 font-bold'}>Worker TBM 서명 확인</span>
@@ -678,13 +676,23 @@ export default function FieldManagerApp() {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 mb-1">{editingWorker.type === '정규직' ? '계약 연봉금액' : '약정 통상 시급'}</label>
-                <input type="number" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.wageInput} onChange={e => setEditingWorker({...editingWorker, wageInput: e.target.value})} />
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">{editingWorker.type === '정규직' ? '계약 연봉금액 (자동 컴마)' : '약정 통상 시급 (자동 컴마)'}</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none text-right pr-4" 
+                  value={editingWorker.wageInput} 
+                  onChange={e => setEditingWorker({...editingWorker, wageInput: formatNumberWithCommas(e.target.value)})} 
+                />
               </div>
               {editingWorker.type === '정규직' && (
                 <div>
-                  <label className="block text-[10px] font-bold text-blue-600 mb-1">매월 고정 특별수당</label>
-                  <input type="number" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.specialAllowance} onChange={e => setEditingWorker({...editingWorker, specialAllowance: e.target.value})} />
+                  <label className="block text-[10px] font-bold text-blue-600 mb-1">매월 고정 특별수당 (자동 컴마)</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none text-right pr-4" 
+                    value={editingWorker.specialAllowance} 
+                    onChange={e => setEditingWorker({...editingWorker, specialAllowance: formatNumberWithCommas(e.target.value)})} 
+                  />
                 </div>
               )}
               <div className="flex gap-2 pt-2 border-t">
