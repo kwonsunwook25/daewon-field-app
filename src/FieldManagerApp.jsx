@@ -21,9 +21,11 @@ export default function FieldManagerApp() {
   const [securityAuthCode, setSecurityAuthCode] = useState(''); 
   const [isSecondStep, setIsSecondStep] = useState(false); 
 
-  // 사용자 보안 자격 명부 데이터베이스
+  // 🎯 [총괄 등급 전면 확장] 최고마스터, 재무총괄, 현장총괄(최고마스터 동등 권한) 계정 정밀 셋업
   const [userRoster, setUserRoster] = useState([
-    { id: 'u-1', loginId: 'master', name: '최고마스터(신유섭)', role: 'master', password: '123', authKey: '7777' },
+    { id: 'u-1', loginId: 'master', name: '권세원 최고마스터', role: 'master', password: '123', authKey: '7777' },
+    { id: 'u-4', loginId: 'sunwook', name: '권선욱 현장총괄', role: 'master', password: '123', authKey: '8888' }, // 최고마스터와 동등 권한 (role: 'master')
+    { id: 'u-5', loginId: 'soyoung', name: '권소영 재무총괄', role: 'finance', password: '123', authKey: '9999' }, // 재무총괄 전용 등급
     { id: 'u-2', loginId: 'admin1', name: '본사재무팀', role: 'admin', password: '123', authKey: '1111' },
     { id: 'u-3', loginId: 'manager1', name: '증평현장소장', role: 'manager', password: '123', authKey: '2222' }
   ]);
@@ -133,7 +135,7 @@ export default function FieldManagerApp() {
     if (currentUser.authKey === securityAuthCode.trim()) {
       setIsLoggedIn(true);
       setIsSecondStep(false);
-      alert(`🔒 인증 통과: [${currentUser.name}] 프로필로 접속 승인.`);
+      alert(`🔒 인증 통과: [${currentUser.name}] 등급 접속 허가.`);
     } else {
       alert("⚠️ 보안 인증키 오류");
     }
@@ -292,19 +294,31 @@ export default function FieldManagerApp() {
   const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
 
+  // 🎯 권한 헬퍼 함수 설정 (최고마스터 & 현장총괄 권한 여부 확인)
+  const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
+  // 재무팀 이상 (최고마스터, 현장총괄, 재무총괄 포함) 원가 열람 권한 확인
+  const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
+
   return (
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl">
       
       {/* 최고 등급 세션 바 */}
       <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-6">
-        <div><span className="text-emerald-400 font-black">● 전산망 보안 가동:</span> <span className="font-bold text-yellow-400 text-sm">{currentUser.name}님 [{currentUser.role.toUpperCase()}]</span></div>
+        <div>
+          <span className="text-emerald-400 font-black">● 전산망 보안 가동:</span>{' '}
+          <span className="font-bold text-yellow-400 text-sm">
+            {currentUser.name} 
+            {currentUser.loginId === 'sunwook' ? ' [현장총괄 - MASTER]' : 
+             currentUser.loginId === 'soyoung' ? ' [재무총괄]' : ` [${currentUser.role.toUpperCase()}]`}
+          </span>
+        </div>
         <button onClick={handleLogout} className="bg-red-950 text-red-400 border border-red-900 text-xs px-3 py-1.5 rounded-xl font-bold hover:bg-red-900 transition-all">로그아웃</button>
       </div>
 
       <header className="bg-gradient-to-r from-slate-900 via-blue-950 to-blue-900 text-white p-5 shadow-lg sticky top-0 z-20">
         <div className="flex bg-black/30 p-1.5 rounded-2xl text-xs font-black space-x-1 max-w-xl mx-auto shadow-inner">
           <button onClick={() => setActiveTab('daily')} className={`flex-1 text-center py-2.5 rounded-xl transition-all ${activeTab === 'daily' ? 'bg-blue-600 text-white shadow' : 'text-slate-400'}`}>
-            {currentUser.role === 'master' ? '📋 실시간 일보 취합 관제부' : '📝 일보 입력 (실무형)'}
+            {isFinanceAccessible ? '📋 실시간 일보 취합 관제부' : '📝 일보 입력 (실무형)'}
           </button>
           {currentUser.role !== 'manager' && (
             <>
@@ -312,17 +326,17 @@ export default function FieldManagerApp() {
               <button onClick={() => setActiveTab('admin')} className={`flex-1 text-center py-2.5 rounded-xl transition-all ${activeTab === 'admin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>➕ 인력 관리</button>
             </>
           )}
-          {currentUser.role === 'master' && <button onClick={() => setActiveTab('security')} className={`flex-1 text-center py-2.5 rounded-xl transition-all ${activeTab === 'security' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400'}`}>🔐 권한 발급</button>}
+          {isMasterOrFieldTotal && <button onClick={() => setActiveTab('security')} className={`flex-1 text-center py-2.5 rounded-xl transition-all ${activeTab === 'security' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400'}`}>🔐 권한 발급</button>}
         </div>
       </header>
 
       <main className="p-6">
         
-        {/* 권한 관리 발급 */}
-        {activeTab === 'security' && currentUser.role === 'master' && (
+        {/* 권한 관리 발급 (최고마스터 & 현장총괄 전용) */}
+        {activeTab === 'security' && isMasterOrFieldTotal && (
           <div className="max-w-2xl mx-auto space-y-4 animate-fade-in">
             <section className="bg-white p-6 rounded-3xl shadow-sm border space-y-3">
-              <h2 className="text-sm font-black text-slate-800">👑 전산 보안 계정 발급창</h2>
+              <h2 className="text-sm font-black text-slate-800">👑 전산 보안 계정 발급창 (총괄 제어부)</h2>
               <form onSubmit={handleCreateUser} className="space-y-2.5">
                 <div className="grid grid-cols-2 gap-3">
                   <input type="text" placeholder="ID 부여 *" className="bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={newUserId} onChange={e => setNewUserId(e.target.value)} />
@@ -333,6 +347,7 @@ export default function FieldManagerApp() {
                   <input type="text" maxLength={4} placeholder="2차 인증키 *" className="bg-slate-50 border p-3 rounded-xl text-xs font-bold text-center tracking-widest outline-none" value={newUserAuthKey} onChange={e => setNewUserAuthKey(e.target.value)} />
                 </div>
                 <select className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
+                  <option value="finance">💳 재무총괄 (본사 자금 및 원가 통제)</option>
                   <option value="admin">👮 관리자 (본사 중간 제어)</option>
                   <option value="manager">👷 현장관리자 (소장 일보 등록 전용)</option>
                 </select>
@@ -384,7 +399,7 @@ export default function FieldManagerApp() {
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminWorkerType} onChange={e => setAdminWorkerType(e.target.value)}><option value="정규직">정규직</option><option value="일용직">일용직</option></select>
                 </div>
                 <div className="space-y-2 bg-slate-50 p-4 rounded-xl border">
-                  {currentUser.role === 'master' ? (
+                  {isFinanceAccessible ? (
                     <div>
                       <label className="block text-[10px] text-slate-400 font-bold mb-1">💡 총 계약 금액 입력 (자동 컴마)</label>
                       <input type="text" placeholder="예: 48,000,000" className="w-full bg-white border rounded-xl p-3 text-xs font-bold outline-none text-right pr-4" value={adminWageInput} onChange={e => setAdminWageInput(formatNumberWithCommas(e.target.value))} />
@@ -406,8 +421,8 @@ export default function FieldManagerApp() {
                     <div key={w.id} className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-2xl border hover:bg-slate-100/50 transition-all">
                       <div><span className="font-black text-slate-900 text-sm mr-1">{w.name} <span className="text-xs text-slate-400 font-normal">({w.constType})</span></span><span className="text-[10px] text-slate-400 block mt-0.5">{w.corp}</span></div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-blue-600 mr-1">시급: {currentUser.role === 'master' ? `${calculatedRate.toLocaleString()}원` : '🔒 보안'}</span>
-                        {currentUser.role === 'master' && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[11px] hover:bg-blue-600 hover:text-white transition-all">수정</button>}
+                        <span className="text-xs font-bold text-blue-600 mr-1">시급: {isFinanceAccessible ? `${calculatedRate.toLocaleString()}원` : '🔒 보안'}</span>
+                        {isMasterOrFieldTotal && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-xl font-black text-[11px] hover:bg-blue-600 hover:text-white transition-all">수정</button>}
                         <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1.5 rounded-xl font-black text-[11px] hover:bg-red-600 hover:text-white transition-all">삭제</button>
                       </div>
                     </div>
@@ -424,7 +439,7 @@ export default function FieldManagerApp() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
               {/* 왼쪽 섹션 (소장님 조작용 현장 선택 및 반장님 터치 패널) */}
-              {currentUser.role !== 'master' && (
+              {!isMasterOrFieldTotal && currentUser.role !== 'finance' && (
                 <div className="lg:col-span-5 space-y-4 animate-fade-in">
                   <section className="bg-gradient-to-br from-blue-950 to-slate-900 text-white p-5 rounded-3xl shadow-md space-y-3 border border-slate-800">
                     <label className="block text-xs font-black text-blue-300 uppercase tracking-wider">1단계: 오늘의 가동 대상 현장 지정 *</label>
@@ -461,20 +476,18 @@ export default function FieldManagerApp() {
                 </div>
               )}
 
-              {/* 오른쪽 섹션 (선택된 인원 시간 입력창 및 마스터 관제 뷰어) */}
-              <div className={`${currentUser.role === 'master' ? 'lg:col-span-12 max-w-5xl mx-auto w-full' : 'lg:col-span-7'} space-y-3`}>
+              {/* 오른쪽 섹션 (선택된 인원 시간 입력창 및 총괄 관제 뷰어) */}
+              <div className={`${(isMasterOrFieldTotal || currentUser.role === 'finance') ? 'lg:col-span-12 max-w-5xl mx-auto w-full' : 'lg:col-span-7'} space-y-3`}>
                 <div className="bg-slate-200/60 rounded-2xl px-2 py-1 text-xs font-black text-slate-500 tracking-wider">
-                  {currentUser.role === 'master' ? '📊 전사 실시간 분할 안분 취합 현황부' : '3단계: 투입 근로자별 시간 기입 및 최종 확인 구역'}
+                  {(isMasterOrFieldTotal || currentUser.role === 'finance') ? '📊 전사 실시간 분할 안분 취합 현황부' : '3단계: 투입 근로자별 시간 기입 및 최종 확인 구역'}
                 </div>
 
                 <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
                   {todayActiveWorkers.map(worker => {
-                    if (currentUser.role !== 'master' && !worker.timeSlots.some(s => s.siteId === activeSiteId)) return null;
+                    if (!isMasterOrFieldTotal && currentUser.role !== 'finance' && !worker.timeSlots.some(s => s.siteId === activeSiteId)) return null;
 
                     const calc = calculateDetailedWage(worker);
                     
-                    // 🎯 [핵심 알고리즘 수정 완료] 
-                    // 한 사람의 타임슬롯들을 소속 법인별로 묶어주기 위한 바인딩 맵 구축 (법인명을 Key값으로 그룹핑)
                     const slotsByCorp = {};
                     worker.timeSlots.forEach(slot => {
                       if (!slotsByCorp[slot.corp]) slotsByCorp[slot.corp] = [];
@@ -488,40 +501,35 @@ export default function FieldManagerApp() {
                             <span className="text-lg font-black text-slate-900 mr-2">{worker.name}</span>
                             <span className="text-xs text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-md">원천소속: {worker.corp} | {worker.type}</span>
                           </div>
-                          {currentUser.role !== 'master' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
+                          {currentUser.role !== 'manager' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
                         </div>
 
-                        {/* 🎯 [대개편] 법인별 동그라미 컨테이너 팩 묶음 레이아웃 가동 */}
+                        {/* 법인별 동그라미 컨테이너 팩 묶음 */}
                         <div className="space-y-3">
                           {Object.keys(slotsByCorp).map(corpKey => (
                             <div key={corpKey} className="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-inner">
-                              {/* 그룹 상단 헤더: 소속 법인 타이틀 명시 */}
                               <div className="text-xs font-black text-blue-900 flex items-center gap-1">
                                 🏢 소속 법인: <span className="text-slate-900 font-bold">{corpKey}</span>
                               </div>
 
-                              {/* 해당 법인 그룹 안에 들어있는 현장 슬롯들을 가로 Grid로 널찍하게 정렬 */}
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {slotsByCorp[corpKey].map(slot => {
                                   const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
                                   const rawSiteName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
                                   
-                                  // 법인명에서 '(주)' 제거하고 간단하게 앞글자만 따서 말머리 생성 (예: [대원])
                                   const shortCorp = corpKey.replace('(주)', '');
                                   const fullVisibleSiteName = `[${shortCorp}] ${rawSiteName}`;
 
-                                  // 원본 전체 인덱스 보관용 추적
                                   const origIdx = worker.timeSlots.findIndex(s => s.slotId === slot.slotId);
 
                                   return (
                                     <div key={slot.slotId} className="bg-white p-3.5 rounded-xl border border-slate-200/80 text-xs space-y-2 relative shadow-sm">
                                       <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1">
-                                        {/* 🎯 [가독성 완료] 현장명 앞에 법인 말머리가 동적으로 붙어 출력 */}
                                         <span className="truncate max-w-[180px] text-slate-800" title={fullVisibleSiteName}>📍 {fullVisibleSiteName}</span>
                                         <span className="text-[10px] text-blue-600 bg-blue-50 px-1 rounded">{slot.constType}</span>
                                       </div>
                                       
-                                      {currentUser.role === 'master' ? (
+                                      {(isMasterOrFieldTotal || currentUser.role === 'finance') ? (
                                         <div className="text-[11px] font-mono text-slate-600 flex justify-between pt-1">
                                           <span>주간: <span className="text-slate-900 font-black">{slot.baseHours}H</span> | 연장: <span className="text-slate-900 font-black">{slot.otHours}H</span></span>
                                           <span className="text-blue-700 font-black">정산노임: {calc.slots[origIdx]?.grossPay.toLocaleString()}원</span>
@@ -558,8 +566,8 @@ export default function FieldManagerApp() {
                           ))}
                         </div>
 
-                        {/* 마스터용 하단 지출 명세 박스 */}
-                        {currentUser.role === 'master' && (
+                        {/* 총괄용 지출 명세 박스 */}
+                        {isFinanceAccessible && (
                           <div className="bg-slate-900 text-slate-300 rounded-2xl p-3.5 text-xs grid grid-cols-3 gap-4 font-mono shadow-md border border-slate-800">
                             <div><span className="text-slate-500 block text-[10px] font-bold">📊 당일 총 노임 원가액</span><span className="text-white font-black text-sm">{calc.totalGross.toLocaleString()} 원</span></div>
                             <div><span className="text-blue-500 block text-[10px] font-bold">📁 하루 퇴직연금 적립금</span><span className="text-blue-400 font-black text-sm">+ {calc.severance.toLocaleString()} 원</span></div>
@@ -582,7 +590,7 @@ export default function FieldManagerApp() {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur border-t shadow-[0_-12px_30px_rgba(0,0,0,0.08)] z-30">
           <div className="max-w-6xl mx-auto space-y-3">
             
-            {currentUser.role === 'master' ? (
+            {isFinanceAccessible ? (
               <div className="space-y-2.5 animate-fade-in">
                 <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white px-4 py-2 rounded-2xl text-xs font-mono flex justify-between items-center shadow-md border border-slate-800/80">
                   <div className="flex items-center gap-1.5"><span className="text-blue-400 font-black">🗓️</span> <span className="text-slate-400 font-bold">전산망 역대 총 누적 기성 집계 기간:</span></div>
@@ -634,12 +642,12 @@ export default function FieldManagerApp() {
                 </div>
               </div>
             ) : (
-              <div className="text-center text-xs font-bold text-slate-400 bg-slate-50 p-3 rounded-2xl border border-dashed">🔒 상세 인건비 기성 및 다중 분할 내역 통계 비공개 (MASTER ONLY)</div>
+              <div className="text-center text-xs font-bold text-slate-400 bg-slate-50 p-3 rounded-2xl border border-dashed">🔒 상세 인건비 기성 및 다중 분할 내역 통계 비공개 (TOTAL ADMIN ONLY)</div>
             )}
 
             <div className="max-w-md mx-auto pt-1">
               <button onClick={() => alert("📢 최종 전산 확정: 당일 발생 안분 및 역대 누적 적산 데이터가 ERP 연동망에 격리 보관되었습니다.")} className="w-full bg-blue-800 text-white font-black text-sm py-4 rounded-xl shadow-xl hover:bg-blue-900 hover:shadow-2xl transition-all tracking-wide">
-                {currentUser.role === 'master' ? `👑 243제 최종 마감 및 관제 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 마감 전송'}
+                {isMasterOrFieldTotal ? `👑 243제 최종 마감 및 관제 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 마감 전송'}
               </button>
             </div>
 
@@ -648,7 +656,7 @@ export default function FieldManagerApp() {
       )}
 
       {/* 근로자 정보 정밀 수정 모달 팝업 */}
-      {editingWorker && currentUser.role === 'master' && (
+      {editingWorker && isMasterOrFieldTotal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100">
             <div className="bg-slate-900 p-4 text-white">
