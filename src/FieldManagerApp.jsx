@@ -95,27 +95,22 @@ export default function FieldManagerApp() {
     alert(`🏢 [${newSite.siteName}] 현장이 정상 등록되었습니다.`);
   };
 
-  // 현장 수정 모달 팝업 열기 트리거
   const handleOpenSiteEditModal = (site) => {
     setEditingSite({ ...site });
   };
 
-  // 팝업창에서 수정한 현장 최종본을 전산 DB에 실시간 저장 및 일보 동기화
   const handleSaveEditedSite = (e) => {
     e.preventDefault();
     if (!editingSite.siteName.trim() || !editingSite.agent.trim() || !editingSite.manager.trim()) {
       alert("현장명, 대리인, 소장 성명은 필수 입력 항목입니다.");
       return;
     }
-
     setSiteProperties(siteProperties.map(s => s.id === editingSite.id ? editingSite : s));
-
     if (selectedSiteId === editingSite.id) {
       setSelectedType(editingSite.constType);
     }
-
     setEditingSite(null);
-    alert(`⚙️ 현장 제원 및 스케줄 변경 사항이 전산에 실시간 반영되었습니다.`);
+    alert(`⚙️ 현장 변경 사항이 실시간 반영되었습니다.`);
   };
 
   // 현장 폐쇄 함수
@@ -203,7 +198,7 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
-  // 엑셀 업로드 파서
+  // 🎯 [전면 개편] 초유연 엑셀 매칭 파서 시스템
   const handleExcelUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -218,17 +213,35 @@ export default function FieldManagerApp() {
         if (jsonData.length === 0) return alert("데이터가 비어있습니다.");
 
         const uploadedWorkers = jsonData.map((row, index) => {
-          const name = String(row['성명'] || row['이름'] || '').trim();
-          const corp = String(row['법인명'] || row['소속법인'] || '').trim();
-          let constType = String(row['공사종류'] || row['공종'] || '').trim();
+          // 💡 유연한 매칭을 위해 공백 제거 및 모든 키 추출
+          const cleanRow = {};
+          Object.keys(row).forEach(key => {
+            const cleanKey = String(key).replace(/\s+/g, ''); // 띄어쓰기 완전 제거
+            cleanRow[cleanKey] = row[key];
+          });
+
+          // 1. [성명 / 이름 / 성함 / 근로자명 / 피고용자] 다 찾기
+          const name = String(cleanRow['성명'] || cleanRow['이름'] || cleanRow['성함'] || cleanRow['근로자명'] || cleanRow['근러자명'] || '').trim();
+          
+          // 2. [법인명 / 소속 / 소속법인 / 회사 / 회사명] 다 찾기
+          const corp = String(cleanRow['법인명'] || cleanRow['소속법인'] || cleanRow['소속'] || cleanRow['회사명'] || cleanRow['회사'] || '').trim();
+          
+          // 3. [공사종류 / 공종 / 공사 / 담당공종] 다 찾기
+          let constType = String(cleanRow['공사종류'] || cleanRow['공종'] || cleanRow['공사'] || cleanRow['담당공종'] || '').trim();
           if (["내선전기", "전문소방", "구내통신"].includes(constType)) constType = "내선공사";
 
-          const type = String(row['근무형태'] || '').trim() === '일용직' ? '일용직' : '정규직';
-          const baseWage = Number(row['급여단가'] || row['연봉'] || row['시급'] || 0);
-          const allowance = Number(row['특별수당'] || row['직책수당'] || 0);
+          // 4. [근무형태 / 구분 / 직종 / 계약구분] 다 찾기
+          const rawType = String(cleanRow['근무형태'] || cleanRow['구분'] || cleanRow['직종'] || cleanRow['계약구분'] || '').trim();
+          const type = rawType.includes('일용') ? '일용직' : '정규직';
+
+          // 5. [급여단가 / 연봉 / 시급 / 금액 / 단가 / 일당] 다 찾기
+          const baseWage = Number(cleanRow['급여단가'] || cleanRow['연봉'] || cleanRow['시급'] || cleanRow['단가'] || cleanRow['금액'] || cleanRow['일당'] || 0);
+          
+          // 6. [특별수당 / 직책수당 / 수당 / 고정수당] 다 찾기
+          const allowance = Number(cleanRow['특별수당'] || cleanRow['직책수당'] || cleanRow['수당'] || cleanRow['고정수당'] || 0);
 
           return {
-            id: `excel-${Date.now()}-${index}`,
+            id: `excel-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`,
             name: name || `미명명_${index+1}`,
             corp: CORPORATIONS.includes(corp) ? corp : CORPORATIONS[0],
             constType: CONSTRUCTION_TYPES.includes(constType) ? constType : CONSTRUCTION_TYPES[0], 
@@ -236,8 +249,9 @@ export default function FieldManagerApp() {
             ...(type === '정규직' ? { annualSalary: baseWage } : { hourlyWage: baseWage })
           };
         });
+
         setMasterWorkerPool([...masterWorkerPool, ...uploadedWorkers]);
-        alert(`📊 총 ${uploadedWorkers.length}명 엑셀 등록 완료.`);
+        alert(`📊 [초유연 엔진 작동 완료] 총 ${uploadedWorkers.length}명의 근로자가 양식 구애 없이 대량 일괄 자동 등록되었습니다!`);
       } catch (error) { alert("엑셀 분석 실패"); }
     };
     reader.readAsArrayBuffer(file);
@@ -438,7 +452,7 @@ export default function FieldManagerApp() {
               </h2>
               <div className="grid grid-cols-2 gap-1.5">
                 <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterCorp} onChange={e => setFilterCorp(e.target.value)}><option value="">🏢 전체 법인</option>{CORPORATIONS.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterType} onChange={e => setFilterType(e.target.value)}><option value="">⚡ 전체 공종</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterType} onChange={e => setFilterType(t => setFilterType(e.target.value))}><option value="">⚡ 전체 공종</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
               </div>
               <input type="text" placeholder="🔎 찾으려는 근로자의 성명을 입력하세요..." className="w-full bg-slate-50 border border-slate-200 text-xs font-bold p-3 rounded-xl outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </section>
@@ -689,7 +703,6 @@ export default function FieldManagerApp() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 mb-1">현장 소장</label>
-                  {/* 💡 [수정 완료] 수많은 인자 속 누락되었던 객체 업데이트 함수의 구조적 괄호 마감부 정밀 보정 */}
                   <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.manager} onChange={e => setEditingSite({...editingSite, manager: e.target.value})} />
                 </div>
               </div>
