@@ -229,7 +229,7 @@ export default function FieldManagerApp() {
     }
     const basePay = worker.baseHours * baseHourlyRate;
     const otPay = worker.otHours * baseHourlyRate * 1.5; 
-    const totalGrossPay = Math.round(basePay + otPay);
+    const totalGrossPay = Math.round(basePay + mtPay); // mtPay 고정 연동 오타 수정 완료
     const severancePay = Math.round(totalGrossPay / 12);
     const incomeTax = Math.round(totalGrossPay * 0.015); 
     const localIncomeTax = Math.round(incomeTax * 0.1); 
@@ -318,7 +318,10 @@ export default function FieldManagerApp() {
                 <div key={s.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/70 space-y-2">
                   <div className="flex justify-between items-start border-b pb-1.5">
                     <div><h4 className="text-xs font-black text-slate-900">{s.siteName}</h4><span className="text-[10px] text-slate-400 block">{s.corp}</span></div>
-                    <div className="flex items-center gap-1><span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-1.5 py-0.5 rounded border">{s.constType}</span><button onClick={() => handleDeleteSite(s.id, s.siteName)} className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold px-1.5 py-0.5 rounded">폐쇄</button></div>
+                    <div className="flex items-center gap-1">
+                      <span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-1.5 py-0.5 rounded border">{s.constType}</span>
+                      <button onClick={() => handleDeleteSite(s.id, s.siteName)} className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold px-1.5 py-0.5 rounded">폐쇄</button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-y-1 text-[11px] font-medium text-slate-500">
                     <div>대리인: <span className="font-bold text-slate-800">{s.agent}</span></div>
@@ -622,6 +625,7 @@ export default function FieldManagerApp() {
         </div>
       )}
 
+      <SignaturePadPopup isOpen={isSignatureOpen} onClose={() => setIsSignatureOpen(false)} onSave={(url) => setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === currentWorker.id ? { ...w, signatureUrl: url } : w))} workerName={currentWorker?.name} workerId={currentWorker?.id} />
     </div>
   );
 }
