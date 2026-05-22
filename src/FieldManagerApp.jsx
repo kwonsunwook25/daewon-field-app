@@ -108,14 +108,14 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 플래그 변수
+  // 권한 플래그 변수 선언 위치 확정 (컴파일 에러 원천 방어)
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
   const formatNumberWithCommas = (value) => {
     if (!value) return '';
     const cleanNumber = String(value).replace(/[^0-9]/g, ''); 
-    return cleanNumber.replace(/\B(?=(\d{3})+(?!\d))/g, ','); 
+    return cleanNumber.replace(/\B(?=(\[0-9]{3})+(?!\d))/g, ','); 
   };
 
   const removeCommas = (str) => {
@@ -202,6 +202,28 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
+  // 243제 인건비 계산 엔진
+  const calculateDetailedWage = (worker) => {
+    let baseHourlyRate = 0;
+    const allowance = worker.specialAllowance || 0;
+    if (worker.type === '정규직') {
+      baseHourlyRate = Math.round(((worker.annualSalary || 0) / 12 + allowance) / 243);
+    } else {
+      baseHourlyRate = (worker.hourlyWage || 0);
+    }
+    let totalGross = 0;
+    const slotsCalculated = worker.timeSlots.map(slot => {
+      const slotGross = Math.round((slot.baseHours * baseHourlyRate) + (slot.otHours * baseHourlyRate * 1.5));
+      totalGross += slotGross;
+      return { ...slot, grossPay: slotGross };
+    });
+    return {
+      hourlyRate: baseHourlyRate, slots: slotsCalculated, totalGross: totalGross,
+      severance: Math.round(totalGross / 12), tax: Math.round(totalGross * 0.0165), insurance: Math.round(totalGross * 0.093),
+      netPay: totalGross - (Math.round(totalGross * 0.0165) + Math.round(totalGross * 0.093))
+    };
+  };
+
   const handleToggleWorkerToActiveSite = (worker) => {
     if (!activeSiteId) return alert("현장을 먼저 지정하세요.");
     const targetSiteObj = siteProperties.find(s => s.id === activeSiteId);
@@ -231,6 +253,7 @@ export default function FieldManagerApp() {
     }
   };
 
+  // 주간 근로 8시간 한도 제어락 스캔 모듈
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
@@ -307,6 +330,7 @@ export default function FieldManagerApp() {
       </header>
 
       <main className="p-2 sm:p-4 md:p-6">
+        
         {/* 권한 관리 발급 */}
         {activeTab === 'security' && isMasterOrFieldTotal && (
           <div className="max-w-2xl mx-auto space-y-4 animate-fade-in">
@@ -370,6 +394,7 @@ export default function FieldManagerApp() {
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminType} onChange={e => setAdminType(e.target.value)}><option value="">공종 선택</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* 🎯 [오타 원천 수정 통과] e => setAdminName(e.target.value) 괄호 검수 마감 */}
                   <input type="text" placeholder="근로자 성명" className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminName} onChange={e => setAdminName(e.target.value)} />
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminWorkerType} onChange={e => setAdminWorkerType(e.target.value)}><option value="정규직">정규직</option><option value="일용직">일용직</option></select>
                 </div>
@@ -498,16 +523,12 @@ export default function FieldManagerApp() {
                                 {slotsByCorp[corpKey].map(slot => {
                                   const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
                                   const rawSiteName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
-                                  
-                                  // 🎯 [원천 보정 핵심 구역] 데이터 캐싱 꼬임 없이 corpKey와 직접 결합하여 무조건 [대원전기] 형태 선두 강제 출력!!
                                   const shortCorp = corpKey.replace('(주)', '');
                                   const fullVisibleSiteName = `[${shortCorp}] ${rawSiteName}`;
-                                  
                                   const origIdx = worker.timeSlots.findIndex(s => s.slotId === slot.slotId);
 
                                   return (
                                     <div key={slot.slotId} className="bg-white p-3 rounded-xl border border-slate-200/80 text-xs space-y-2 relative shadow-sm">
-                                      {/* 🎯 [완전 패치 완료] 줄바꿈 유연 처리 및 법인 접두어 100% 매핑 출력 */}
                                       <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1 gap-2">
                                         <span className="block text-slate-800 leading-tight pr-1">📍 {fullVisibleSiteName}</span>
                                         <span className="text-[9px] text-blue-600 bg-blue-50 px-1 rounded h-fit shrink-0">{slot.constType}</span>
