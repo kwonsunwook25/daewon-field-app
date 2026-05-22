@@ -103,7 +103,6 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 플래그 변수 안전 배치
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -196,6 +195,29 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
+  // 243제 인건비 계산 엔진
+  const calculateDetailedWage = (worker) => {
+    let baseHourlyRate = 0;
+    const allowance = worker.specialAllowance || 0;
+    if (worker.type === '정규직') {
+      baseHourlyRate = Math.round(((worker.annualSalary || 0) / 12 + allowance) / 243);
+    } else {
+      baseHourlyRate = (worker.hourlyWage || 0);
+    }
+    // 🎯 [하얀화면 영구 종결 핵심 수리] 변수 선언 연산자 let을 확실히 박아서 리액트 셧다운 충돌 완전 제거!!
+    let totalGross = 0;
+    const slotsCalculated = worker.timeSlots.map(slot => {
+      const slotGross = Math.round((slot.baseHours * baseHourlyRate) + (slot.otHours * baseHourlyRate * 1.5));
+      totalGross += slotGross;
+      return { ...slot, grossPay: slotGross };
+    });
+    return {
+      hourlyRate: baseHourlyRate, slots: slotsCalculated, totalGross: totalGross,
+      severance: Math.round(totalGross / 12), tax: Math.round(totalGross * 0.0165), insurance: Math.round(totalGross * 0.093),
+      netPay: totalGross - (Math.round(totalGross * 0.0165) + Math.round(totalGross * 0.093))
+    };
+  };
+
   const handleToggleWorkerToActiveSite = (worker) => {
     if (!activeSiteId) return alert("현장을 먼저 지정하세요.");
     const targetSiteObj = siteProperties.find(s => s.id === activeSiteId);
@@ -244,11 +266,7 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
   };
 
-  const finalSummary = getDichotomySummary();
-  const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
-  const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
-
-  // 🎯 [하얀화면 결착 핵심수리 지점] 1차 자격 검증창 게이트웨이 완전 격리 검증
+  // 로그인 화면 게이트웨이
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -275,7 +293,7 @@ export default function FieldManagerApp() {
   return (
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl px-2 sm:px-4 md:px-6">
       
-      {/* 최고 등급 세션 바 (🎯 안전벨트 currentUser?.name 세팅 완료로 크래시 종결) */}
+      {/* 최고 등급 세션 바 */}
       <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-6 rounded-b-xl shadow-md">
         <div className="truncate max-w-[70%]">
           <span className="text-emerald-400 font-black text-[10px] sm:text-xs">● 전산망 보안 가동:</span>{' '}
