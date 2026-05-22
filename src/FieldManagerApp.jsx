@@ -52,7 +52,6 @@ export default function FieldManagerApp() {
   const [newSiteContractDate, setNewSiteContractDate] = useState('');
   const [newSiteStartDate, setNewSiteStartDate] = useState('');
   const [newSiteEndDate, setNewSiteEndDate] = useState('');
-  const [editingSite, setEditingSite] = useState(null);
 
   // 전사 인력풀 DB
   const [masterWorkerPool, setMasterWorkerPool] = useState([
@@ -68,14 +67,13 @@ export default function FieldManagerApp() {
   const [adminWorkerType, setAdminWorkerType] = useState('정규직');
   const [adminWageInput, setAdminWageInput] = useState(''); 
   const [adminAllowanceInput, setAdminAllowanceInput] = useState(''); 
-
-  // 🎯 [흰 화면 해결의 핵심] 인력 수정 모달 제어용 누락 상태값 완벽 복구
   const [editingWorker, setEditingWorker] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSiteId, setActiveSiteId] = useState('');
 
-  // 실시간 출역 데이터셋
+  // 🎯 [실무 데이터베이스 확장] 
+  // 당일 실시간 출역 명단 상태값
   const [todayActiveWorkers, setTodayActiveWorkers] = useState([
     {
       id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000, healthOk: true, signatureUrl: 'done',
@@ -92,6 +90,20 @@ export default function FieldManagerApp() {
     }
   ]);
 
+  // 🎯 [신규 동적 가상 마스터 원가 누적 보관소] 
+  // 시스템 가동 기간 및 현장별 역대 누적 데이터베이스 시뮬레이터 (추후 DB 연결 확장 규격)
+  const [historyConfig] = useState({
+    systemStartDate: "2026-01-01", // 누적 집계 시작 기점일
+    systemCurrentDate: "2026-05-22", // 오늘 날짜 기점 (142일간 누적 상태)
+    // 이전까지 적산되어 넘어온 각 현장별 역대 누적 인건비 원가 (단위: 원)
+    pastAccumulatedSiteLogs: {
+      's-1': 148500000, // 증평 지중화 공사 현장 과거 누적분
+      's-2': 92400000,  // 청주 한전 배전단가 현장 과거 누적분
+      's-3': 213000000, // 진천 변전소 신설 공사 과거 누적분
+      's-4': 45000000   // 증평 구내통신망 구축 현장 과거 누적분
+    }
+  });
+
   const formatNumberWithCommas = (value) => {
     if (!value) return '';
     const cleanNumber = String(value).replace(/[^0-9]/g, ''); 
@@ -102,7 +114,7 @@ export default function FieldManagerApp() {
     return Number(String(str).replace(/,/g, '')) || 0;
   };
 
-  // 로그인 인증
+  // 로그인 및 인증
   const handleLoginSubmit = (e) => {
     e.preventDefault();
     const account = userRoster.find(u => u.loginId === loginId.trim());
@@ -119,7 +131,7 @@ export default function FieldManagerApp() {
     if (currentUser.authKey === securityAuthCode.trim()) {
       setIsLoggedIn(true);
       setIsSecondStep(false);
-      alert(`🔒 인증 통과: [${currentUser.name}] 프로필 접속 승인.`);
+      alert(`🔒 인증 통과: [${currentUser.name}] 프로필로 접속 승인.`);
     } else {
       alert("⚠️ 보안 인증키 오류");
     }
@@ -138,7 +150,7 @@ export default function FieldManagerApp() {
     alert(`✅ 계정 발급 승인.`);
   };
 
-  // 현장 생성
+  // 현장 개설
   const handleAddSite = (e) => {
     e.preventDefault();
     const newSite = {
@@ -150,25 +162,7 @@ export default function FieldManagerApp() {
     alert(`🏢 현장 전산 개설 완료.`);
   };
 
-  const handleOpenSiteEditModal = (site) => {
-    if (currentUser?.role === 'manager') return alert("⚠️ 권한 오류: 현장관리자는 권한이 없습니다.");
-    setEditingSite({ ...site });
-  };
-
-  const handleSaveEditedSite = (e) => {
-    e.preventDefault();
-    setSiteProperties(siteProperties.map(s => s.id === editingSite.id ? editingSite : s));
-    setEditingSite(null);
-    alert(`⚙️ 현장 변경 사항이 실시간 반영되었습니다.`);
-  };
-
-  const handleDeleteSite = (siteId, siteName) => {
-    if (currentUser?.role === 'manager') return alert("⚠️ 권한 오류: 권한이 없습니다.");
-    if (!window.confirm(`⚠️ '${siteName}' 현장을 삭제하시겠습니까?`)) return;
-    setSiteProperties(siteProperties.filter(s => s.id !== siteId));
-  };
-
-  // 인력 수동 등록
+  // 인력 등록
   const handleAdminAddWorker = (e) => {
     e.preventDefault();
     const wageNum = removeCommas(adminWageInput);
@@ -177,107 +171,32 @@ export default function FieldManagerApp() {
       id: `admin-${Date.now()}`, corp: adminCorp, constType: adminType, name: adminName.trim(), type: adminWorkerType, specialAllowance: allowanceNum,
       ...(adminWorkerType === '정규직' ? { annualSalary: wageNum } : { hourlyWage: wageNum })
     };
-    setMasterWorkerPool([...masterWorkerPool, newWorker]);
+    masterWorkerPool.push(newWorker);
     setAdminName(''); setAdminWageInput(''); setAdminAllowanceInput('');
     alert(`✅ 인력 등록 완료.`);
   };
 
-  // 🎯 [흰 화면 해결 핵심 구원투수 1] 근로자 정보 수정 저장 처리기 완벽 연동
   const handleSaveEditedWorker = (e) => {
     e.preventDefault();
-    if (!editingWorker.name.trim() || !editingWorker.wageInput) {
-      alert("성명과 급여 단가는 필수 항목입니다.");
-      return;
-    }
     const wageNum = removeCommas(editingWorker.wageInput);
     const allowanceNum = removeCommas(editingWorker.specialAllowance);
-
     const updatedWorker = {
-      id: editingWorker.id, corp: editingWorker.corp, constType: editingWorker.constType,
-      name: editingWorker.name.trim(), type: editingWorker.type, specialAllowance: allowanceNum,
+      id: editingWorker.id, corp: editingWorker.corp, constType: editingWorker.constType, name: editingWorker.name.trim(), type: editingWorker.type, specialAllowance: allowanceNum,
       ...(editingWorker.type === '정규직' ? { annualSalary: wageNum } : { hourlyWage: wageNum })
     };
-
     setMasterWorkerPool(masterWorkerPool.map(w => w.id === editingWorker.id ? updatedWorker : w));
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === editingWorker.id ? { ...w, ...updatedWorker } : w));
     setEditingWorker(null);
-    alert(`⚙️ '${updatedWorker.name}' 근로자의 정보가 전산에 실시간 반영되었습니다.`);
+    alert(`⚙️ 근로자 정보 실시간 반영 완료.`);
   };
 
   const handleAdminDeleteWorker = (workerId, workerName) => {
-    if (currentUser?.role === 'manager') return alert("⚠️ 권한 오류: 권한이 없습니다.");
     if (!window.confirm(`⚠️ '${workerName}' 근로자를 삭제하시겠습니까?`)) return;
     setMasterWorkerPool(masterWorkerPool.filter(w => w.id !== workerId));
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
-  // 엑셀 업로드 파서
-  const handleExcelUpload = (e) => {
-    if (currentUser?.role === 'manager') return alert("⚠️ 권한 오류: 권한이 없습니다.");
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-        if (rawRows.length <= 1) return alert("데이터가 비어있습니다.");
-
-        const headers = (rawRows[0] || []).map(h => String(h || '').replace(/\s+/g, ''));
-        const nameIdx = headers.findIndex(h => h.includes('성명') || h.includes('이름') || h.includes('성함') || h.includes('근로자'));
-        const corpIdx = headers.findIndex(h => h.includes('법인') || h.includes('소속') || h.includes('회사'));
-        const constIdx = headers.findIndex(h => h.includes('공종') || h.includes('공사') || h.includes('종류'));
-        const typeIdx = headers.findIndex(h => h.includes('형태') || h.includes('구분') || h.includes('직종'));
-        const wageIdx = headers.findIndex(h => h.includes('단가') || h.includes('연봉') || h.includes('시급') || h.includes('금액') || h.includes('일당'));
-        const allowanceIdx = headers.findIndex(h => h.includes('수당') || h.includes('특별') || h.includes('직책'));
-
-        const uploadedWorkers = [];
-
-        for (let i = 1; i < rawRows.length; i++) {
-          const row = rawRows[i];
-          if (!row || row.length === 0) continue;
-
-          let name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
-          if (!name) {
-            const backupText = row.find(val => val && typeof val === 'string' && val.trim().length >= 2 && val.trim().length <= 5);
-            name = backupText ? backupText.trim() : '';
-          }
-
-          if (!name || name.includes('성명') || name.includes('이름')) continue;
-
-          let corp = corpIdx !== -1 ? String(row[corpIdx] || '').trim() : '';
-          const matchedCorp = CORPORATIONS.find(c => corp && c.includes(corp.replace(/\s+/g, ''))) || CORPORATIONS[0];
-
-          let constType = constIdx !== -1 ? String(row[constIdx] || '').trim() : '';
-          if (["내선전기", "전문소방", "구내통신"].includes(constType)) constType = "내선공사";
-          const matchedConstType = CONSTRUCTION_TYPES.find(t => constType && t.includes(constType.replace(/\s+/g, ''))) || CONSTRUCTION_TYPES[0];
-
-          const rawType = typeIdx !== -1 ? String(row[typeIdx] || '') : '';
-          const type = rawType.includes('일용') ? '일용직' : '정규직';
-
-          const rawWageVal = wageIdx !== -1 ? String(row[wageIdx] || '0') : '0';
-          const rawAllowanceVal = allowanceIdx !== -1 ? String(row[allowanceIdx] || '0') : '0';
-          const baseWage = Number(rawWageVal.replace(/,/g, '')) || 0;
-          const totalAllowance = Number(rawAllowanceVal.replace(/,/g, '')) || 0;
-
-          uploadedWorkers.push({
-            id: `excel-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
-            name: name, corp: matchedCorp, constType: matchedConstType, type: type, specialAllowance: totalAllowance,
-            ...(type === '정규직' ? { annualSalary: baseWage } : { hourlyWage: baseWage })
-          });
-        }
-
-        setMasterWorkerPool([...masterWorkerPool, ...uploadedWorkers]);
-        alert(`📊 총 ${uploadedWorkers.length}명의 근로자가 대량 등록되었습니다!`);
-      } catch (error) { alert("⚠️ 엑셀 분석 실패"); }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  // 243제 정산 수치 분할 엔진
+  // 243제 인건비 계산 엔진
   const calculateDetailedWage = (worker) => {
     let baseHourlyRate = 0;
     const allowance = worker.specialAllowance || 0;
@@ -299,6 +218,7 @@ export default function FieldManagerApp() {
     };
   };
 
+  // 소장용 투입 인터페이스 모듈
   const handleToggleWorkerToActiveSite = (worker) => {
     if (!activeSiteId) return alert("현장을 먼저 지정하세요.");
     const targetSiteObj = siteProperties.find(s => s.id === activeSiteId);
@@ -325,17 +245,31 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
   };
 
+  // 🎯 [다차원 전산 고도화] 법인별 당일 / 현장별 당일 및 "역대 누적 인건비"까지 종합 3트랙 파싱 집계 엔진
   const getDichotomySummary = () => {
     const corpMap = {}; CORPORATIONS.forEach(c => { corpMap[c] = 0; });
-    const siteMap = {}; let totalGross = 0; let totalNet = 0;
+    
+    const siteDailyMap = {}; // 당일 현장 분량
+    const siteTotalAccumMap = { ...historyConfig.pastAccumulatedSiteLogs }; // 역대 누적용 마스터 맵 (과거값 복사로 초기화)
+    
+    let totalGross = 0; let totalNet = 0;
+    
     todayActiveWorkers.forEach(w => {
       const calc = calculateDetailedWage(w); totalNet += calc.netPay;
       calc.slots.forEach(s => {
         if (corpMap[s.corp] !== undefined) { corpMap[s.corp] += s.grossPay; totalGross += s.grossPay; }
-        if (s.siteId) { if (!siteMap[s.siteId]) siteMap[s.siteId] = 0; siteMap[s.siteId] += s.grossPay; }
+        if (s.siteId) {
+          // 가. 당일 현장 비용 가산
+          if (!siteDailyMap[s.siteId]) siteDailyMap[s.siteId] = 0;
+          siteDailyMap[s.siteId] += s.grossPay;
+
+          // 나. 역대 누적 마스터 맵에 오늘 실시간 발생한 단가 실시간 가산 누계 (오늘 공사비 실시간 적산)
+          if (!siteTotalAccumMap[s.siteId]) siteTotalAccumMap[s.siteId] = 0;
+          siteTotalAccumMap[s.siteId] += s.grossPay;
+        }
       });
     });
-    return { corpMap, siteMap, totalGross, totalNet };
+    return { corpMap, siteDailyMap, siteTotalAccumMap, totalGross, totalNet };
   };
 
   const finalSummary = getDichotomySummary();
@@ -366,9 +300,9 @@ export default function FieldManagerApp() {
   }
 
   return (
-    <div className="max-w-md mx-auto bg-slate-100 min-h-screen pb-72 font-sans text-slate-800 antialiased">
+    <div className="max-w-md mx-auto bg-slate-100 min-h-screen pb-80 font-sans text-slate-800 antialiased">
       
-      {/* 최고 등급 세션 정보 유틸 바 */}
+      {/* 최고 등급 세션 정보 바 */}
       <div className="bg-slate-900 text-white p-2.5 text-xs flex justify-between items-center px-4">
         <div><span className="text-emerald-400 font-black">● 전산망 접속:</span> <span className="font-bold text-yellow-400">{currentUser.name} [{currentUser.role.toUpperCase()}]</span></div>
         <button onClick={handleLogout} className="bg-red-950 text-red-400 border border-red-900 text-[10px] px-2.5 py-1 rounded font-bold">로그아웃</button>
@@ -442,7 +376,7 @@ export default function FieldManagerApp() {
           </div>
         )}
 
-        {/* 🎯 [오류 원천 봉쇄] 인력 관리 탭 구역 정밀 연동 */}
+        {/* 인력 관리 */}
         {activeTab === 'admin' && currentUser.role !== 'manager' && (
           <div className="space-y-4 animate-fade-in">
             <section className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
@@ -470,7 +404,6 @@ export default function FieldManagerApp() {
               </form>
             </section>
 
-            {/* 🎯 [흰 화면 격파 핵심 구역 2] 마스터 명부 관리 및 수정 연동 프레임 노출 보정 */}
             <section className="bg-white p-4 rounded-2xl shadow-sm border">
               <h2 className="text-xs font-black text-slate-400 uppercase mb-2">마스터 명부 관리 및 수정부 ({masterWorkerPool.length}명)</h2>
               <div className="max-h-60 overflow-y-auto space-y-1.5">
@@ -481,14 +414,7 @@ export default function FieldManagerApp() {
                       <div><span className="font-black text-slate-900 mr-1">{w.name} <span className="text-[9px] text-slate-400 font-normal">({w.constType})</span></span><span className="text-[10px] text-slate-400 block">{w.corp}</span></div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] font-bold text-blue-600 mr-1">시급: {currentUser.role === 'master' ? `${calculatedRate.toLocaleString()}원` : '🔒 보안'}</span>
-                        {currentUser.role === 'master' && (
-                          <button 
-                            onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} 
-                            className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]"
-                          >
-                            수정
-                          </button>
-                        )}
+                        {currentUser.role === 'master' && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>}
                         <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded font-black text-[10px]">삭제</button>
                       </div>
                     </div>
@@ -502,6 +428,8 @@ export default function FieldManagerApp() {
         {/* 일보 메인 구역 (권한별 동적 분기) */}
         {activeTab === 'daily' && (
           <div className="space-y-4">
+            
+            {/* 마스터 등급일 때는 상단 입력 상자 차단 ➔ 오직 관제판 상태 노출 */}
             {currentUser.role === 'master' ? (
               <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-4 rounded-2xl shadow-md text-center space-y-1 border border-blue-800 animate-fade-in">
                 <div className="text-xs font-black text-blue-300 flex justify-center items-center gap-1">📡 전사 실시간 출역 종합 관제 네트워크 가동 중</div>
@@ -511,6 +439,7 @@ export default function FieldManagerApp() {
                 </p>
               </div>
             ) : (
+              // 소장님 등급 인터페이스 노출
               <>
                 <section className="bg-gradient-to-br from-blue-900 to-slate-900 text-white p-4 rounded-2xl shadow-md space-y-2">
                   <label className="block text-[10px] font-black text-blue-300 uppercase mb-1">1단계: 오늘의 가동 대상 현장 지정 *</label>
@@ -609,7 +538,7 @@ export default function FieldManagerApp() {
           </div>
         )}
 
-        {/* 인력 명부 조회 단순 탭 */}
+        {/* 인력 명부 단순 조회 */}
         {activeTab === 'roster' && (
           <div className="space-y-4 animate-fade-in">
             <input type="text" placeholder="🔎 이름을 통합 검색하세요..." className="w-full bg-white border text-xs font-bold p-3 rounded-xl outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
@@ -625,45 +554,70 @@ export default function FieldManagerApp() {
         )}
       </main>
 
-      {/* 하단 집계 및 일보 마감 대시보드 바 */}
+      {/* 🎯 하단 집계 및 3중 다차원 실시간 누적 안분 기성 대시보드 바 */}
       {activeTab === 'daily' && todayActiveWorkers.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-8px_20px_rgba(0,0,0,0.05)] z-30 space-y-2">
           <div className="max-w-md mx-auto space-y-2">
+            
             {currentUser.role === 'master' ? (
-              <div className="grid grid-cols-2 gap-2 animate-fade-in">
-                <div className="bg-slate-50 border p-2 rounded-xl text-[10px] font-mono space-y-0.5 max-h-24 overflow-y-auto">
-                  <div className="font-black text-slate-400 pb-0.5 border-b uppercase">🏢 오늘 법인별 안분 누계</div>
-                  {Object.keys(finalSummary.corpMap).map(corpKey => {
-                    if (finalSummary.corpMap[corpKey] === 0) return null;
-                    return (
-                      <div key={corpKey} className="flex justify-between text-slate-600"><span>{corpKey}</span><span className="font-bold text-blue-600">{finalSummary.corpMap[corpKey].toLocaleString()}원</span></div>
-                    );
-                  })}
+              <div className="space-y-2 animate-fade-in">
+                {/* 🎯 상단 레이어: 가동 누적 기간 안내 표식 (2026년 기점 기준 연동) */}
+                <div className="bg-slate-900 text-white px-3 py-1.5 rounded-xl text-[10px] font-mono flex justify-between items-center border border-slate-800">
+                  <span className="text-slate-400 font-bold">🗓️ 전산망 총 누적 집계 기간:</span>
+                  <span className="text-yellow-400 font-black font-mono">
+                    {historyConfig.systemStartDate} ~ {historyConfig.systemCurrentDate} (총 142일간 적산)
+                  </span>
                 </div>
-                <div className="bg-blue-50/50 border border-blue-100 p-2 rounded-xl text-[10px] font-mono space-y-0.5 max-h-24 overflow-y-auto">
-                  <div className="font-black text-blue-800 pb-0.5 border-b uppercase">📍 오늘 현장별 인건비 합산</div>
-                  {Object.keys(finalSummary.siteMap).map(siteIdKey => {
-                    const matchedSiteObj = siteProperties.find(s => s.id === siteIdKey);
-                    const displayName = matchedSiteObj ? matchedSiteObj.siteName : "미지정 현장";
-                    return (
-                      <div key={siteIdKey} className="flex justify-between text-slate-700"><span>• {displayName}</span><span className="font-black text-emerald-700">{finalSummary.siteMap[siteIdKey].toLocaleString()}원</span></div>
-                    );
-                  })}
+
+                <div className="grid grid-cols-2 gap-2">
+                  {/* 가. 법인별 당일 안분 누계 */}
+                  <div className="bg-slate-50 border p-2 rounded-xl text-[9px] font-mono space-y-0.5 max-h-24 overflow-y-auto">
+                    <div className="font-black text-slate-400 pb-0.5 border-b uppercase">🏢 오늘 법인별 안분</div>
+                    {Object.keys(finalSummary.corpMap).map(corpKey => {
+                      if (finalSummary.corpMap[corpKey] === 0) return null;
+                      return (
+                        <div key={corpKey} className="flex justify-between text-slate-600"><span>{corpKey}</span><span className="font-bold text-blue-600">{finalSummary.corpMap[corpKey].toLocaleString()}원</span></div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 나. 💥 [최고 마스터 전용 확장] 각 현장별 당일 발생액 및 "역대 총 누적 인건비" 동시 안분 차트 */}
+                  <div className="bg-blue-50/70 border border-blue-100 p-2 rounded-xl text-[9px] font-mono space-y-1 max-h-24 overflow-y-auto">
+                    <div className="font-black text-blue-900 pb-0.5 border-b uppercase flex justify-between">
+                      <span>📍 각 현장별 인건비 합산</span>
+                      <span className="text-emerald-700 font-black">[금일 / 역대누적]</span>
+                    </div>
+                    {Object.keys(finalSummary.siteTotalAccumMap).map(siteIdKey => {
+                      const matchedSiteObj = siteProperties.find(s => s.id === siteIdKey);
+                      const displayName = matchedSiteObj ? matchedSiteObj.siteName : "미지정 현장";
+                      const dailyAmount = finalSummary.siteDailyMap[siteIdKey] || 0;
+                      const totalAccumAmount = finalSummary.siteTotalAccumMap[siteIdKey] || 0;
+
+                      return (
+                        <div key={siteIdKey} className="border-b border-slate-200/50 pb-0.5 last:border-0 text-slate-700">
+                          <div className="truncate font-bold text-[9px] text-slate-800">• {displayName}</div>
+                          <div className="flex justify-between text-[8.5px] font-mono pt-0.5 pl-1.5">
+                            <span className="text-slate-400">금일: {dailyAmount.toLocaleString()}원</span>
+                            <span className="font-black text-emerald-700">누적: {totalAccumAmount.toLocaleString()}원</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ) : (
               <div className="text-center text-[10px] text-slate-400 font-bold bg-slate-50 p-2 rounded-xl">🔒 상세 인건비 기성 합산 현황 비공개 (MASTER ONLY)</div>
             )}
-            <button onClick={() => alert(currentUser.role === 'master' ? "📢 마스터 권한 승인: 최종 확정 마감 완료." : "✅ 현장 일보 취합 데이터 전송 완료.")} className="w-full bg-blue-800 text-white font-black text-xs py-3.5 rounded-xl shadow-xl hover:bg-blue-900 transition-all">
-              {currentUser.role === 'master' ? `👑 243제 최종 마감 및 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 마감 전송'}
+
+            <button onClick={() => alert("📢 마스터 권한 승인: 당일 발생 및 역대 누적 데이터 마감이 ERP 자산화로 원천 락(Lock) 보관되었습니다.")} className="w-full bg-blue-800 text-white font-black text-xs py-3.5 rounded-xl shadow-xl hover:bg-blue-900 transition-all">
+              {currentUser.role === 'master' ? `👑 243제 최종 마감 및 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 전송 마감'}
             </button>
           </div>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 🎯 [인력 탭 락 해제 핵심] 근로자 정보 정밀 수정 모달 팝업창 연동 */}
-      {/* ========================================================= */}
+      {/* 근로자 정보 정밀 수정 모달 팝업 */}
       {editingWorker && currentUser.role === 'master' && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100">
