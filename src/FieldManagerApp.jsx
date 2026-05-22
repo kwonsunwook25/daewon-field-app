@@ -1,3 +1,4 @@
+import './index.css'; // 강제로 디자인 파일 연결
 import React, { useState } from 'react';
 import SignaturePadPopup from './SignaturePadPopup';
 
