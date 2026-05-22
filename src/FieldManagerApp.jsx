@@ -15,14 +15,14 @@ const CONSTRUCTION_TYPES = [
 export default function FieldManagerApp() {
   const [activeTab, setActiveTab] = useState('daily');
 
-  // 🎯 [신규 동적 데이터베이스] 현장 마스터 정보 시스템
+  // 현장 마스터 정보 DB
   const [siteProperties, setSiteProperties] = useState([
     { id: 's-1', corp: '대원전기(주)', siteName: '증평 지중화 공사 현장', constType: '배전', agent: '홍길동', manager: '김철수', contractDate: '2026-01-02', startDate: '2026-01-15', endDate: '2026-12-31' },
     { id: 's-2', corp: '대원전기(주)', siteName: '청주 한전 배전단가 현장', constType: '배전', agent: '이영희', manager: '박반장', contractDate: '2026-01-01', startDate: '2026-01-01', endDate: '2026-12-31' },
     { id: 's-3', corp: '우창전력(주)', siteName: '진천 변전소 신설 공사', constType: '변전', agent: '최소장', manager: '박소장', contractDate: '2026-02-10', startDate: '2026-03-01', endDate: '2027-05-30' }
   ]);
 
-  // 🎯 현장 신규 등록 폼 상태값들
+  // 현장 신규 등록 폼 상태값
   const [newSiteCorp, setNewSiteCorp] = useState('');
   const [newSiteName, setNewSiteName] = useState('');
   const [newSiteConstType, setNewSiteConstType] = useState('');
@@ -32,7 +32,7 @@ export default function FieldManagerApp() {
   const [newSiteStartDate, setNewSiteStartDate] = useState('');
   const [newSiteEndDate, setNewSiteEndDate] = useState('');
 
-  // [통합 마스터 인력 DB]
+  // 마스터 인력 DB
   const [masterWorkerPool, setMasterWorkerPool] = useState([
     { id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000 },
     { id: 'm-2', corp: '대원전기(주)', constType: '지중송전', name: '이일용', type: '일용직', hourlyWage: 18000, specialAllowance: 0 },
@@ -48,7 +48,7 @@ export default function FieldManagerApp() {
   const [adminWageInput, setAdminWageInput] = useState(''); 
   const [adminAllowanceInput, setAdminAllowanceInput] = useState(''); 
 
-  // 근로자 정보 정밀 수정 팝업 상태값
+  // 근로자 정밀 수정 팝업 상태값
   const [editingWorker, setEditingWorker] = useState(null);
 
   // 일보 작성 전용 상태값
@@ -66,7 +66,7 @@ export default function FieldManagerApp() {
   const [isSignatureOpen, setIsSignatureOpen] = useState(false);
   const [currentWorker, setCurrentWorker] = useState(null);
 
-  // 🎯 [신규 기능] 현장 수동 등록 처리 함수
+  // 현장 등록 함수
   const handleAddSite = (e) => {
     e.preventDefault();
     if (!newSiteCorp || !newSiteName.trim() || !newSiteConstType || !newSiteAgent.trim() || !newSiteManager.trim()) {
@@ -87,15 +87,14 @@ export default function FieldManagerApp() {
     };
 
     setSiteProperties([...siteProperties, newSite]);
-    // 폼 초기화
     setNewSiteName(''); setNewSiteAgent(''); setNewSiteManager('');
     setNewSiteContractDate(''); setNewSiteStartDate(''); setNewSiteEndDate('');
-    alert(`🏢 [${newSite.siteName}] 현장이 전산 마스터 DB에 정상 등록되었습니다.`);
+    alert(`🏢 [${newSite.siteName}] 현장이 정상 등록되었습니다.`);
   };
 
-  // 🎯 [신규 기능] 현장 삭제 함수
+  // 현장 폐쇄 함수
   const handleDeleteSite = (siteId, siteName) => {
-    if (!window.confirm(`⚠️ [주의] '${siteName}' 현장을 삭제하시겠습니까?\n해당 현장 정보가 영구 삭제됩니다.`)) return;
+    if (!window.confirm(`⚠️ '${siteName}' 현장을 삭제하시겠습니까?`)) return;
     setSiteProperties(siteProperties.filter(s => s.id !== siteId));
     if (selectedSiteId === siteId) {
       setSelectedSiteId('');
@@ -115,7 +114,6 @@ export default function FieldManagerApp() {
   const handleSiteChange = (e) => {
     const siteId = e.target.value;
     setSelectedSiteId(siteId);
-    // 선택된 현장의 대표 공종을 자동으로 기본값 세팅해주는 사용자 편의 필터
     const targetSite = siteProperties.find(s => s.id === siteId);
     if (targetSite) {
       setSelectedType(targetSite.constType);
@@ -125,7 +123,7 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers([]);
   };
 
-  // 근로자 신규 등록
+  // 근로자 수동 신규 등록
   const handleAdminAddWorker = (e) => {
     e.preventDefault();
     if (!adminCorp || !adminType || !adminName.trim() || !adminWageInput) {
@@ -154,7 +152,7 @@ export default function FieldManagerApp() {
   const handleSaveEditedWorker = (e) => {
     e.preventDefault();
     if (!editingWorker.name.trim() || !editingWorker.wageInput) {
-      alert("성명과 급여 단가는 필수 입력 항목입니다.");
+      alert("성명과 급여 단가는 필수 항목입니다.");
       return;
     }
     const wageNum = Number(editingWorker.wageInput);
@@ -169,17 +167,17 @@ export default function FieldManagerApp() {
     setMasterWorkerPool(masterWorkerPool.map(w => w.id === editingWorker.id ? updatedWorker : w));
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === editingWorker.id ? { ...w, ...updatedWorker } : w));
     setEditingWorker(null);
-    alert(`⚙️ '${updatedWorker.name}' 근로자의 정보가 실시간 수정되었습니다.`);
+    alert(`⚙️ '${updatedWorker.name}' 근로자 정보가 수정되었습니다.`);
   };
 
   // 근로자 영구 삭제
   const handleAdminDeleteWorker = (workerId, workerName) => {
-    if (!window.confirm(`⚠️ [경고] '${workerName}' 근로자를 삭제하시겠습니까?`)) return;
+    if (!window.confirm(`⚠️ '${workerName}' 근로자를 삭제하시겠습니까?`)) return;
     setMasterWorkerPool(masterWorkerPool.filter(w => w.id !== workerId));
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
-  // 엑셀 일괄 업로드 파서
+  // 엑셀 업로드 파서
   const handleExcelUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -191,7 +189,7 @@ export default function FieldManagerApp() {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(sheet);
 
-        if (jsonData.length === 0) return alert("엑셀 데이터가 비어있습니다.");
+        if (jsonData.length === 0) return alert("데이터가 비어있습니다.");
 
         const uploadedWorkers = jsonData.map((row, index) => {
           const name = String(row['성명'] || row['이름'] || '').trim();
@@ -213,13 +211,13 @@ export default function FieldManagerApp() {
           };
         });
         setMasterWorkerPool([...masterWorkerPool, ...uploadedWorkers]);
-        alert(`📊 엑셀 대량 업로드 성공! 총 ${uploadedWorkers.length}명 선등록 완료.`);
+        alert(`📊 총 ${uploadedWorkers.length}명 엑셀 등록 완료.`);
       } catch (error) { alert("엑셀 분석 실패"); }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // 243 정산용 급여 계산식
+  // 243 정산용 계산식
   const calculate243Wage = (worker) => {
     let baseHourlyRate = 0;
     const allowance = worker.specialAllowance || 0;
@@ -251,10 +249,7 @@ export default function FieldManagerApp() {
     }
   };
 
-  // 선택한 법인에 연동되어 동적으로 필터링되는 현장 리스트
   const dynamicSites = siteProperties.filter(s => s.corp === selectedCorp);
-  
-  // 현재 선택된 현장의 마스터 상세 오브젝트 파싱
   const currentActiveSiteDetail = siteProperties.find(s => s.id === selectedSiteId);
 
   const filteredMasterPool = masterWorkerPool.filter(worker => {
@@ -275,23 +270,23 @@ export default function FieldManagerApp() {
       <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white p-5 shadow-lg sticky top-0 z-20">
         <div className="flex justify-between items-center mb-3">
           <h1 className="text-lg font-black tracking-tight">⚙️ 대원 통합 현장 전산시스템</h1>
-          <span className="bg-emerald-600 text-[10px] px-2 py-0.5 rounded font-bold">현장 등록 확장</span>
+          <span className="bg-emerald-600 text-[10px] px-2 py-0.5 rounded font-bold">마감 마스터</span>
         </div>
         <div className="flex bg-black/20 p-1 rounded-xl text-[10px] font-black space-x-0.5">
           <button onClick={() => setActiveTab('daily')} className={`flex-1 text-center py-2 rounded-lg transition-all ${activeTab === 'daily' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>📝 일보 작성</button>
-          <button onClick={() => setActiveTab('siteAdmin')} className={`flex-1 text-center py-2 rounded-lg transition-all ${activeTab === 'siteAdmin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>🏢 현장 마스터 등록</button>
-          <button onClick={() => setActiveTab('admin')} className={`flex-1 text-center py-2 rounded-lg transition-all ${activeTab === 'admin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>➕ 근로자 등록/수정</button>
+          <button onClick={() => setActiveTab('siteAdmin')} className={`flex-1 text-center py-2 rounded-lg transition-all ${activeTab === 'siteAdmin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>🏢 현장 등록</button>
+          <button onClick={() => setActiveTab('admin')} className={`flex-1 text-center py-2 rounded-lg transition-all ${activeTab === 'admin' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>➕ 인력 등록/수정</button>
           <button onClick={() => setActiveTab('roster')} className={`flex-1 text-center py-2 rounded-lg transition-all ${activeTab === 'roster' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}>📊 인력 조회</button>
         </div>
       </header>
 
       <main className="p-4 space-y-4">
         
-        {/* 🎯 [신규 탭] 🏢 현장 마스터 등록 및 관리 탭 */}
+        {/* 현장 마스터 등록 및 관리 탭 */}
         {activeTab === 'siteAdmin' && (
           <div className="space-y-4 animate-fade-in">
             <section className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
-              <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-1">🏢 신규 현장 개설 등록부</h2>
+              <h2 className="text-sm font-extrabold text-slate-800">🏢 신규 현장 개설 등록부</h2>
               <form onSubmit={handleAddSite} className="space-y-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <select className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold" value={newSiteCorp} onChange={e => setNewSiteCorp(e.target.value)}>
@@ -309,44 +304,26 @@ export default function FieldManagerApp() {
                   <input type="text" placeholder="현장 소장 성명 *" className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none" value={newSiteManager} onChange={e => setNewSiteManager(e.target.value)} />
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border space-y-2 text-xs">
-                  <div className="grid grid-cols-2 gap-2 items-center">
-                    <label className="text-slate-500 font-bold">📅 계약 체결일</label>
-                    <input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={newSiteContractDate} onChange={e => setNewSiteContractDate(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 items-center">
-                    <label className="text-slate-500 font-bold">🚀 실제 착공일</label>
-                    <input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={newSiteStartDate} onChange={e => setNewSiteStartDate(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 items-center">
-                    <label className="text-slate-500 font-bold">🏁 예정 준공일</label>
-                    <input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={newSiteEndDate} onChange={e => setNewSiteEndDate(e.target.value)} />
-                  </div>
+                  <div className="grid grid-cols-2 gap-2 items-center"><label className="text-slate-500 font-bold">📅 계약 체결일</label><input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={newSiteContractDate} onChange={e => setNewSiteContractDate(e.target.value)} /></div>
+                  <div className="grid grid-cols-2 gap-2 items-center"><label className="text-slate-500 font-bold">🚀 실제 착공일</label><input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={newSiteStartDate} onChange={e => setNewSiteStartDate(e.target.value)} /></div>
+                  <div className="grid grid-cols-2 gap-2 items-center"><label className="text-slate-500 font-bold">🏁 예정 준공일</label><input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={newSiteEndDate} onChange={e => setNewSiteEndDate(e.target.value)} /></div>
                 </div>
-                <button type="submit" className="w-full bg-slate-900 text-white text-xs py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">신규 현장 전산 개설</button>
+                <button type="submit" className="w-full bg-slate-900 text-white text-xs py-3 rounded-xl font-bold hover:bg-slate-800">신규 현장 전산 개설</button>
               </form>
             </section>
 
-            {/* 개설된 현장 리스트 모니터링 */}
             <section className="space-y-2">
-              <h3 className="text-xs font-black text-slate-400 uppercase px-1">현재 전산 가동 중인 현장 ({siteProperties.length}개현장)</h3>
+              <h3 className="text-xs font-black text-slate-400 uppercase px-1">현재 전산 가동 중인 현장 ({siteProperties.length}개)</h3>
               {siteProperties.map(s => (
                 <div key={s.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/70 space-y-2">
                   <div className="flex justify-between items-start border-b pb-1.5">
-                    <div>
-                      <h4 className="text-xs font-black text-slate-900">{s.siteName}</h4>
-                      <span className="text-[10px] text-slate-400 block">{s.corp}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-1.5 py-0.5 rounded border border-blue-200">{s.constType}</span>
-                      <button onClick={() => handleDeleteSite(s.id, s.siteName)} className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold px-1.5 py-0.5 rounded">폐쇄</button>
-                    </div>
+                    <div><h4 className="text-xs font-black text-slate-900">{s.siteName}</h4><span className="text-[10px] text-slate-400 block">{s.corp}</span></div>
+                    <div className="flex items-center gap-1><span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-1.5 py-0.5 rounded border">{s.constType}</span><button onClick={() => handleDeleteSite(s.id, s.siteName)} className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold px-1.5 py-0.5 rounded">폐쇄</button></div>
                   </div>
                   <div className="grid grid-cols-2 gap-y-1 text-[11px] font-medium text-slate-500">
                     <div>대리인: <span className="font-bold text-slate-800">{s.agent}</span></div>
                     <div>현장소장: <span className="font-bold text-slate-800">{s.manager}</span></div>
-                    <div className="col-span-2 text-[10px] text-slate-400 pt-1 font-mono">
-                      🗓️ 계약: {s.contractDate} | 착공: {s.startDate} | 준공예정: {s.endDate}
-                    </div>
+                    <div className="col-span-2 text-[10px] text-slate-400 pt-1 font-mono">🗓️ 계약: {s.contractDate} | 착공: {s.startDate} | 준공예정: {s.endDate}</div>
                   </div>
                 </div>
               ))}
@@ -354,7 +331,7 @@ export default function FieldManagerApp() {
           </div>
         )}
 
-        {/* 모드 1: 인력 추가 및 명부 관리 탭 */}
+        {/* 인력 추가 및 명부 관리 탭 */}
         {activeTab === 'admin' && (
           <div className="space-y-4 animate-fade-in">
             <section className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-2xl shadow-sm border border-blue-200 space-y-3">
@@ -410,7 +387,7 @@ export default function FieldManagerApp() {
                     <div key={w.id} className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border">
                       <div><span className="font-black text-slate-900 mr-1">{w.name} <span className="text-[9px] text-slate-400 font-normal">({w.constType})</span></span><span className="text-[10px] text-slate-400 block">{w.corp}</span></div>
                       <div className="flex items-center gap-1.5"><span className="text-[10px] font-bold text-blue-600 mr-1">{calculatedRate.toLocaleString()}원</span>
-                        <button onClick={() => handleOpenEditModal(w)} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>
+                        <button onClick={() => setEditingWorker({...w, wageInput: w.type === '정규직' ? w.annualSalary : w.hourlyWage})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>
                         <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded font-black text-[10px]">삭제</button>
                       </div>
                     </div>
@@ -421,7 +398,7 @@ export default function FieldManagerApp() {
           </div>
         )}
 
-        {/* 모드 3: 전체 근로자 명부 조회 탭 */}
+        {/* 전체 근로자 명부 조회 탭 */}
         {activeTab === 'roster' && (
           <div className="space-y-4 animate-fade-in">
             <section className="bg-white p-4 rounded-2xl shadow-sm border space-y-3">
@@ -430,8 +407,8 @@ export default function FieldManagerApp() {
                 <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">총 {filteredMasterPool.length}명</span>
               </h2>
               <div className="grid grid-cols-2 gap-1.5">
-                <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterCorp} onChange={e => setFilterCorp(e.target.value)}><option value="">🏢 전체 법인 리스트</option>{CORPORATIONS.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterType} onChange={e => setFilterType(e.target.value)}><option value="">⚡ 전체 공종 리스트</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterCorp} onChange={e => setFilterCorp(e.target.value)}><option value="">🏢 전체 법인</option>{CORPORATIONS.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                <select className="bg-slate-50 border border-slate-200 text-[11px] font-bold p-2.5 rounded-xl outline-none" value={filterType} onChange={e => setFilterType(e.target.value)}><option value="">⚡ 전체 공종</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
               </div>
               <input type="text" placeholder="🔎 찾으려는 근로자의 성명을 입력하세요..." className="w-full bg-slate-50 border border-slate-200 text-xs font-bold p-3 rounded-xl outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </section>
@@ -460,7 +437,7 @@ export default function FieldManagerApp() {
           </div>
         )}
 
-        {/* 모드 2: 일보 및 현장 배치 탭 */}
+        {/* 일보 및 현장 배치 탭 */}
         {activeTab === 'daily' && (
           <div className="space-y-4">
             <section className="bg-white p-5 rounded-2xl shadow-md border space-y-3">
@@ -473,8 +450,7 @@ export default function FieldManagerApp() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-black text-slate-400 uppercase mb-1.5">2. 현장 선택 (동적 연동)</label>
-                  {/* 🎯 [수정 변동] 고정된 현장이 아니라, 마스터에 기재된 실시간 현장 풀이 맵핑되어 나타납니다 */}
+                  <label className="block text-[11px] font-black text-slate-400 uppercase mb-1.5">2. 현장 선택</label>
                   <select className="w-full bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl p-3 outline-none" value={selectedSiteId} onChange={handleSiteChange} disabled={!selectedCorp}>
                     <option value="">현장 선택</option>
                     {dynamicSites.map(s => <option key={s.id} value={s.id}>{s.siteName}</option>)}
@@ -489,12 +465,11 @@ export default function FieldManagerApp() {
                 </div>
               </div>
 
-              {/* 🎯 [신규 스마트 레이아웃] 선택된 현장의 소장님 및 기간 마스터 제원 전산 노출 */}
               {currentActiveSiteDetail && (
                 <div className="bg-slate-900 text-slate-300 rounded-xl p-3.5 text-[11px] space-y-1 font-mono border border-slate-700">
                   <div className="text-white font-black border-b border-slate-700 pb-1 mb-1.5 flex justify-between">
                     <span>📋 현장 제원 전산정보</span>
-                    <span className="text-emerald-400 text-[10px]">계약 가동 중</span>
+                    <span className="text-emerald-400 text-[10px]">가동 중</span>
                   </div>
                   <div className="flex justify-between"><span>• 현장 대리인:</span><span className="text-white font-bold">{currentActiveSiteDetail.agent} 소장</span></div>
                   <div className="flex justify-between"><span>• 현장 소장:</span><span className="text-white font-bold">{currentActiveSiteDetail.manager} 소장</span></div>
@@ -590,4 +565,63 @@ export default function FieldManagerApp() {
       {activeTab === 'daily' && todayActiveWorkers.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-[0_-8px_20px_rgba(0,0,0,0.05)] z-20">
           <div className="max-w-md mx-auto space-y-2">
-            <div className="flex justify
+            <div className="flex justify-between text-[11px] font-black px-1">
+              <span>노임총액: {totalSummary.gross.toLocaleString()}원</span>
+              <span className="text-blue-600">퇴직적립: {totalSummary.severance.toLocaleString()}원</span>
+              <span className="text-red-500">세금공제: {totalSummary.tax.toLocaleString()}원</span>
+            </div>
+            <button onClick={() => alert(`✅ [243시간제 데이터 정산 완료]`)} className="w-full bg-blue-800 text-white font-black text-base py-4 rounded-xl shadow-xl hover:bg-blue-900">
+              243제 마감 및 본사 전송 ({totalSummary.net.toLocaleString()}원 지급)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 근로자 정보 정밀 수정 모달 팝업 */}
+      {editingWorker && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100">
+            <div className="bg-slate-900 p-4 text-white">
+              <h3 className="font-black text-sm">✏️ 근로자 정보 정밀 수정 패널</h3>
+            </div>
+            <form onSubmit={handleSaveEditedWorker} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">근로자 이름</label>
+                <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.name} onChange={e => setEditingWorker({...editingWorker, name: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">소속 법인</label>
+                  <select className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.corp} onChange={e => setEditingWorker({...editingWorker, corp: e.target.value})}>
+                    {CORPORATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">담당 공종</label>
+                  <select className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.constType} onChange={e => setEditingWorker({...editingWorker, constType: e.target.value})}>
+                    {CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">{editingWorker.type === '정규직' ? '계약 연봉금액' : '약정 통상 시급'}</label>
+                <input type="number" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.wageInput} onChange={e => setEditingWorker({...editingWorker, wageInput: e.target.value})} />
+              </div>
+              {editingWorker.type === '정규직' && (
+                <div>
+                  <label className="block text-[10px] font-bold text-blue-600 mb-1">매월 고정 특별수당</label>
+                  <input type="number" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingWorker.specialAllowance} onChange={e => setEditingWorker({...editingWorker, specialAllowance: e.target.value})} />
+                </div>
+              )}
+              <div className="flex gap-2 pt-2 border-t">
+                <button type="button" onClick={() => setEditingWorker(null)} className="flex-1 bg-slate-100 border text-slate-500 font-bold text-xs py-3 rounded-xl">취소</button>
+                <button type="submit" className="flex-1 bg-blue-800 text-white font-black text-xs py-3 rounded-xl">수정본 저장</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
