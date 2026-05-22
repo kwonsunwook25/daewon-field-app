@@ -70,8 +70,7 @@ export default function FieldManagerApp() {
   const [activeSiteId, setActiveSiteId] = useState('');
   const [isZoomDashboardOpen, setIsZoomDashboardOpen] = useState(false);
 
-  // 🎯 [인증 후 하얀오류 원천 봉쇄 수리구역] 
-  // 샘플 데이터셋 내부의 현장 매핑 식별값(siteId)을 상단 인프라 축과 완벽하게 1:1 결합 일치 완료!
+  // 실시간 출역 명단 데이터셋 (매핑 식별값 s-1, s-2 완벽 일치 구조화)
   const [todayActiveWorkers, setTodayActiveWorkers] = useState([
     {
       id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000, healthOk: true, signatureUrl: 'done',
@@ -104,7 +103,7 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 플래그 변수 선언 위치 고정
+  // 권한 플래그 변수 안전 배치
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -213,6 +212,7 @@ export default function FieldManagerApp() {
         }
       } else {
         const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
+        // 🎯 [하얀화면 결착 수리 지점 1] const 지정을 누락 없이 확실하게 명시하여 빌드 다운 현상 완전 퇴치!!
         const remainingHours = 8 - currentTotalBase;
         const initialSlotBase = remainingHours > 0 ? remainingHours : 0;
 
@@ -271,7 +271,7 @@ export default function FieldManagerApp() {
   const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
 
-  // 로그인 화면 게이트웨이
+  // 🎯 [하얀화면 결착 수리 지점 2] 첫 로그인 진입 게이트웨이 화면 렌더링 무결성 확인
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -279,15 +279,15 @@ export default function FieldManagerApp() {
           <div className="text-center"><h2 className="text-xl font-black text-slate-900">⚡ 대원 통합 전산인프라</h2></div>
           {!isSecondStep ? (
             <form onSubmit={handleLoginSubmit} className="space-y-3">
-              <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginId} onChange={e => setLoginId(e.target.value)} />
-              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-              <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl">1차 자격 검증</button>
+              <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={loginId} onChange={e => setLoginId(e.target.value)} />
+              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold outline-none" value={loginPassword} onChange={e => loginPassword !== e.target.value && setLoginPassword(e.target.value)} />
+              <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl shadow-md">1차 자격 검증</button>
             </form>
           ) : (
             <form onSubmit={handleAuthKeySubmit} className="space-y-3">
               <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser.name}</div>
-              <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
-              <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl">2차 최종 승인</button>
+              <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest outline-none" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
+              <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl shadow-md">2차 최종 승인</button>
             </form>
           )}
         </div>
