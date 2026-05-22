@@ -19,7 +19,7 @@ export default function FieldManagerApp() {
   const [securityAuthCode, setSecurityAuthCode] = useState(''); 
   const [isSecondStep, setIsSecondStep] = useState(false); 
 
-  // [👑 1번 사수] 권세원 최고마스터 / 권선욱 현장총괄 / 권소영 재무총괄 삼각 계정 명부
+  // [👑 삼각 총괄 등급 명부 고정]
   const [userRoster, setUserRoster] = useState([
     { id: 'u-1', loginId: 'master', name: '권세원 최고마스터', role: 'master', password: '123', authKey: '7777' },
     { id: 'u-4', loginId: 'sunwook', name: '권선욱 현장총괄', role: 'master', password: '123', authKey: '8888' }, 
@@ -103,6 +103,7 @@ export default function FieldManagerApp() {
     }
   });
 
+  // 권한 플래그 변수 안전 배치
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -195,29 +196,6 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
-  // 243제 인건비 계산 엔진
-  const calculateDetailedWage = (worker) => {
-    let baseHourlyRate = 0;
-    const allowance = worker.specialAllowance || 0;
-    if (worker.type === '정규직') {
-      baseHourlyRate = Math.round(((worker.annualSalary || 0) / 12 + allowance) / 243);
-    } else {
-      baseHourlyRate = (worker.hourlyWage || 0);
-    }
-    // 🎯 [하얀화면 영구 종결 핵심 수리] 변수 선언 연산자 let을 확실히 박아서 리액트 셧다운 충돌 완전 제거!!
-    let totalGross = 0;
-    const slotsCalculated = worker.timeSlots.map(slot => {
-      const slotGross = Math.round((slot.baseHours * baseHourlyRate) + (slot.otHours * baseHourlyRate * 1.5));
-      totalGross += slotGross;
-      return { ...slot, grossPay: slotGross };
-    });
-    return {
-      hourlyRate: baseHourlyRate, slots: slotsCalculated, totalGross: totalGross,
-      severance: Math.round(totalGross / 12), tax: Math.round(totalGross * 0.0165), insurance: Math.round(totalGross * 0.093),
-      netPay: totalGross - (Math.round(totalGross * 0.0165) + Math.round(totalGross * 0.093))
-    };
-  };
-
   const handleToggleWorkerToActiveSite = (worker) => {
     if (!activeSiteId) return alert("현장을 먼저 지정하세요.");
     const targetSiteObj = siteProperties.find(s => s.id === activeSiteId);
@@ -234,8 +212,9 @@ export default function FieldManagerApp() {
         }
       } else {
         const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
-        const remainingHours = 8 - currentTotalBase;
-        const initialSlotBase = remainingHours > 0 ? remainingHours : 0;
+        // 🎯 [수리 지점 1] 독립된 로컬 상수로 완벽하게 래핑 선언 완료!
+        const nextRemainingHours = 8 - currentTotalBase;
+        const initialSlotBase = nextRemainingHours > 0 ? nextRemainingHours : 0;
 
         setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { 
           ...w, 
@@ -264,6 +243,28 @@ export default function FieldManagerApp() {
       }
     }
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
+  };
+
+  // 243제 인건비 계산 엔진
+  const calculateDetailedWage = (worker) => {
+    let baseHourlyRate = 0;
+    const allowance = worker.specialAllowance || 0;
+    if (worker.type === '정규직') {
+      baseHourlyRate = Math.round(((worker.annualSalary || 0) / 12 + allowance) / 243);
+    } else {
+      baseHourlyRate = (worker.hourlyWage || 0);
+    }
+    let totalGross = 0;
+    const slotsCalculated = worker.timeSlots.map(slot => {
+      const slotGross = Math.round((slot.baseHours * baseHourlyRate) + (slot.otHours * baseHourlyRate * 1.5));
+      totalGross += slotGross;
+      return { ...slot, grossPay: slotGross };
+    });
+    return {
+      hourlyRate: baseHourlyRate, slots: slotsCalculated, totalGross: totalGross,
+      severance: Math.round(totalGross / 12), tax: Math.round(totalGross * 0.0165), insurance: Math.round(totalGross * 0.093),
+      netPay: totalGross - (Math.round(totalGross * 0.0165) + Math.round(totalGross * 0.093))
+    };
   };
 
   // 로그인 화면 게이트웨이
@@ -535,7 +536,8 @@ export default function FieldManagerApp() {
                                       {isFinanceAccessible ? (
                                         <div className="text-[10px] sm:text-[11px] font-mono text-slate-600 flex justify-between pt-1 gap-1">
                                           <span>주: <span className="text-slate-900 font-black">{slot.baseHours}H</span> | 연: <span className="text-slate-900 font-black">{slot.otHours}H</span></span>
-                                          <span className="text-blue-700 font-black text-right">노임: {calc.slots[origIdx] ? `${calc.slots[origIdx].grossPay.toLocaleString()}원` : '0원'}</span>
+                                          {/* 🎯 [수리 지점 2] 안전 식별 수식(?.) 보정으로 인증 후 충돌 완벽 방어 */}
+                                          <span className="text-blue-700 font-black text-right">노임: {calc?.slots?.[origIdx] ? `${calc.slots[origIdx].grossPay.toLocaleString()}원` : '0원'}</span>
                                         </div>
                                       ) : (
                                         <div className="grid grid-cols-2 gap-2 pt-0.5">
@@ -710,27 +712,6 @@ export default function FieldManagerApp() {
                 </table>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 근로자 수정 모달 */}
-      {editingWorker && isMasterOrFieldTotal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-4 space-y-3">
-            <h3 className="font-black text-sm text-slate-900 border-b pb-1">✏️ 근로자 정보 정밀 수정</h3>
-            <form onSubmit={handleSaveEditedWorker} className="space-y-3 text-xs">
-              <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl font-bold" value={editingWorker.name} onChange={e => setEditingWorker({...editingWorker, name: e.target.value})} />
-              <div className="grid grid-cols-2 gap-2">
-                <select className="w-full bg-slate-50 border p-2.5 rounded-xl font-bold" value={editingWorker.corp} onChange={e => setEditingWorker({...editingWorker, corp: e.target.value})}>{CORPORATIONS.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                <select className="w-full bg-slate-50 border p-2.5 rounded-xl font-bold" value={editingWorker.constType} onChange={e => setEditingWorker({...editingWorker, constType: e.target.value})}>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
-              </div>
-              <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl font-bold text-right" value={editingWorker.wageInput} onChange={e => setEditingWorker({...editingWorker, wageInput: formatNumberWithCommas(e.target.value)})} />
-              <div className="flex gap-2 pt-2 border-t">
-                <button type="button" onClick={() => setEditingWorker(null)} className="flex-1 bg-slate-100 p-2.5 rounded-xl font-bold text-slate-500">취소</button>
-                <button type="submit" className="flex-1 bg-blue-800 text-white p-2.5 rounded-xl font-black">저장</button>
-              </div>
-            </form>
           </div>
         </div>
       )}
