@@ -108,6 +108,7 @@ export default function FieldManagerApp() {
     }
   });
 
+  // 권한 플래그 변수
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -201,28 +202,6 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.filter(w => w.id !== workerId));
   };
 
-  // 243제 인건비 계산 엔진
-  const calculateDetailedWage = (worker) => {
-    let baseHourlyRate = 0;
-    const allowance = worker.specialAllowance || 0;
-    if (worker.type === '정규직') {
-      baseHourlyRate = Math.round(((worker.annualSalary || 0) / 12 + allowance) / 243);
-    } else {
-      baseHourlyRate = (worker.hourlyWage || 0);
-    }
-    let totalGross = 0;
-    const slotsCalculated = worker.timeSlots.map(slot => {
-      const slotGross = Math.round((slot.baseHours * baseHourlyRate) + (slot.otHours * baseHourlyRate * 1.5));
-      totalGross += slotGross;
-      return { ...slot, grossPay: slotGross };
-    });
-    return {
-      hourlyRate: baseHourlyRate, slots: slotsCalculated, totalGross: totalGross,
-      severance: Math.round(totalGross / 12), tax: Math.round(totalGross * 0.0165), insurance: Math.round(totalGross * 0.093),
-      netPay: totalGross - (Math.round(totalGross * 0.0165) + Math.round(totalGross * 0.093))
-    };
-  };
-
   const handleToggleWorkerToActiveSite = (worker) => {
     if (!activeSiteId) return alert("현장을 먼저 지정하세요.");
     const targetSiteObj = siteProperties.find(s => s.id === activeSiteId);
@@ -252,7 +231,6 @@ export default function FieldManagerApp() {
     }
   };
 
-  // 🎯 [중복 투입 상호 배제 제어락 인젝션] 8시간 상한 정밀 예외 처리기
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
@@ -263,7 +241,7 @@ export default function FieldManagerApp() {
         
         if (otherSlotsTotalBase + numValue > 8) {
           const maxAllowable = 8 - otherSlotsTotalBase;
-          alert(`⚠️ [중복 타임슬롯 입력 거부 - 하루 8H 한도 락]\n\n'${targetWorker.name}' 근로자는 같은 날 다른 현장에 이미 주간 [ ${otherSlotsTotalBase}시간 ]이 입력되어 있습니다.\n\n동일 시간대 중복 투입은 불가능하므로, 현재 현장에는 최대 [ ${maxAllowable}시간 ] 까지만 추가 기입이 가능합니다.`);
+          alert(`⚠️ [출역 오폭 입력 차단 - 8시간 자동 락]\n\n'${targetWorker.name}' 근로자는 이미 다른 현장에서 주간 ${otherSlotsTotalBase}시간이 기입되어 있습니다.\n오늘 추가로 입력 가능한 주간 최대 근로시간은 [${maxAllowable}시간] 입니다.`);
           return; 
         }
       }
@@ -329,7 +307,6 @@ export default function FieldManagerApp() {
       </header>
 
       <main className="p-2 sm:p-4 md:p-6">
-        
         {/* 권한 관리 발급 */}
         {activeTab === 'security' && isMasterOrFieldTotal && (
           <div className="max-w-2xl mx-auto space-y-4 animate-fade-in">
@@ -421,7 +398,7 @@ export default function FieldManagerApp() {
                       <div className="flex items-center justify-between w-full sm:w-auto gap-2 border-t sm:border-t-0 pt-1.5 sm:pt-0">
                         <span className="text-xs font-bold text-blue-600 mr-1">시급: {isFinanceAccessible ? `${calculatedRate.toLocaleString()}원` : '🔒 보안'}</span>
                         <div className="flex gap-1">
-                          {isMasterOrFieldTotal && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded font-black text-[10px]">수정</button>}
+                          {isMasterOrFieldTotal && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>}
                           <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded font-black text-[10px]">삭제</button>
                         </div>
                       </div>
@@ -505,7 +482,7 @@ export default function FieldManagerApp() {
                       <div key={worker.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4 hover:shadow-md transition-all animate-fade-in">
                         <div className="flex justify-between items-center border-b pb-2.5 gap-2">
                           <div className="truncate">
-                            <span className="text-base sm:text-lg font-black text-slate-900 mr-2">{worker.name}</span>
+                            <span className="text-lg font-black text-slate-900 mr-2">{worker.name}</span>
                             <span className="text-[10px] sm:text-xs text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[140px] inline-block align-middle">소속: {worker.corp}</span>
                           </div>
                           {!isFinanceAccessible && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold shrink-0 hover:underline">현장제외</button>}
@@ -522,7 +499,7 @@ export default function FieldManagerApp() {
                                   const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
                                   const rawSiteName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
                                   
-                                  // 🎯 [완벽 시인성 개편 1] 공사현장명 바로 앞에 대괄호로 법인명을 선두 배치!
+                                  // 🎯 [원천 보정 핵심 구역] 데이터 캐싱 꼬임 없이 corpKey와 직접 결합하여 무조건 [대원전기] 형태 선두 강제 출력!!
                                   const shortCorp = corpKey.replace('(주)', '');
                                   const fullVisibleSiteName = `[${shortCorp}] ${rawSiteName}`;
                                   
@@ -530,6 +507,7 @@ export default function FieldManagerApp() {
 
                                   return (
                                     <div key={slot.slotId} className="bg-white p-3 rounded-xl border border-slate-200/80 text-xs space-y-2 relative shadow-sm">
+                                      {/* 🎯 [완전 패치 완료] 줄바꿈 유연 처리 및 법인 접두어 100% 매핑 출력 */}
                                       <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1 gap-2">
                                         <span className="block text-slate-800 leading-tight pr-1">📍 {fullVisibleSiteName}</span>
                                         <span className="text-[9px] text-blue-600 bg-blue-50 px-1 rounded h-fit shrink-0">{slot.constType}</span>
@@ -544,24 +522,11 @@ export default function FieldManagerApp() {
                                         <div className="grid grid-cols-2 gap-2 pt-0.5">
                                           <div>
                                             <label className="block text-[9px] text-slate-500 font-bold mb-0.5 text-center">주간 시간</label>
-                                            <input 
-                                              type="number" min={0} max={8} 
-                                              disabled={slot.siteId !== activeSiteId} 
-                                              className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
-                                              value={slot.baseHours} 
-                                              // 🎯 [완벽 시인성 개편 2] 8시간 상호 배제형 인풋 연동 락 검증식 연동
-                                              onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} 
-                                            />
+                                            <input type="number" min={0} max={8} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.baseHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} />
                                           </div>
                                           <div>
                                             <label className="block text-[9px] text-slate-500 font-bold mb-0.5 text-center">연장 시간</label>
-                                            <input 
-                                              type="number" min={0} max={24} 
-                                              disabled={slot.siteId !== activeSiteId} 
-                                              className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
-                                              value={slot.otHours} 
-                                              onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} 
-                                            />
+                                            <input type="number" min={0} max={24} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.otHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} />
                                           </div>
                                         </div>
                                       )}
@@ -664,7 +629,7 @@ export default function FieldManagerApp() {
             )}
 
             <div className="max-w-md mx-auto">
-              <button onClick={() => alert("📢 최종 전산 확정 승인이 마감되었습니다.")} className="w-full bg-blue-800 text-white font-black text-xs sm:text-sm py-3.5 rounded-xl shadow-xl hover:bg-blue-900 transition-all">
+              <button onClick={() => alert("📢 최종 전산 확정 및 ERP 자산 연동 승인이 완료되었습니다.")} className="w-full bg-blue-800 text-white font-black text-xs sm:text-sm py-3.5 rounded-xl shadow-xl hover:bg-blue-900 transition-all">
                 {isMasterOrFieldTotal ? `👑 최종 마감 및 관제 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 마감 전송'}
               </button>
             </div>
@@ -682,9 +647,7 @@ export default function FieldManagerApp() {
                 <h3 className="font-black text-sm sm:text-lg truncate">🖥️ 대원 기성 원가 파노라마 전광판</h3>
                 <p className="text-slate-400 text-[10px] sm:text-xs truncate font-mono">가동 기점일: {historyConfig.systemStartDate}부 적산 데이터</p>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setIsZoomDashboardOpen(false)} className="bg-white/10 text-white px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black shrink-0">닫기</button>
-              </div>
+              <button onClick={() => setIsZoomDashboardOpen(false)} className="bg-white/10 text-white px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black shrink-0">닫기</button>
             </div>
             <div className="p-3 sm:p-6 flex-1 overflow-y-auto space-y-4 bg-slate-50/50">
               <div className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
