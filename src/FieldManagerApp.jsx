@@ -32,7 +32,7 @@ export default function FieldManagerApp() {
   const [newSiteStartDate, setNewSiteStartDate] = useState('');
   const [newSiteEndDate, setNewSiteEndDate] = useState('');
 
-  // 🎯 [신규 상태값] 현재 수정 팝업창(모달)에 열려있는 현장의 데이터 보관함
+  // 현재 수정 팝업창(모달)에 열려있는 현장의 데이터 보관함
   const [editingSite, setEditingSite] = useState(null);
 
   // 마스터 인력 DB
@@ -95,12 +95,12 @@ export default function FieldManagerApp() {
     alert(`🏢 [${newSite.siteName}] 현장이 정상 등록되었습니다.`);
   };
 
-  // 🎯 [신규 기능] 현장 수정 모달 팝업 열기 트리거
+  // 현장 수정 모달 팝업 열기 트리거
   const handleOpenSiteEditModal = (site) => {
     setEditingSite({ ...site });
   };
 
-  // 🎯 [신규 기능] 팝업창에서 수정한 현장 최종본을 전산 DB에 실시간 저장 및 일보 동기화
+  // 팝업창에서 수정한 현장 최종본을 전산 DB에 실시간 저장 및 일보 동기화
   const handleSaveEditedSite = (e) => {
     e.preventDefault();
     if (!editingSite.siteName.trim() || !editingSite.agent.trim() || !editingSite.manager.trim()) {
@@ -108,15 +108,13 @@ export default function FieldManagerApp() {
       return;
     }
 
-    // 가. 현장 마스터 DB 정보 교체
     setSiteProperties(siteProperties.map(s => s.id === editingSite.id ? editingSite : s));
 
-    // 나. 만약 현재 일보 작성창에서 선택 중인 현장을 수정했다면 대표 공종도 실시간 리셋 전파
     if (selectedSiteId === editingSite.id) {
       setSelectedType(editingSite.constType);
     }
 
-    setEditingSite(null); // 모달 닫기
+    setEditingSite(null);
     alert(`⚙️ 현장 제원 및 스케줄 변경 사항이 전산에 실시간 반영되었습니다.`);
   };
 
@@ -348,7 +346,6 @@ export default function FieldManagerApp() {
                     <div><h4 className="text-xs font-black text-slate-900">{s.siteName}</h4><span className="text-[10px] text-slate-400 block">{s.corp}</span></div>
                     <div className="flex items-center gap-1">
                       <span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-1.5 py-0.5 rounded border">{s.constType}</span>
-                      {/* 🎯 [수정 버튼 패널 추가 배치] */}
                       <button onClick={() => handleOpenSiteEditModal(s)} className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold px-1.5 py-0.5 rounded">수정</button>
                       <button onClick={() => handleDeleteSite(s.id, s.siteName)} className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold px-1.5 py-0.5 rounded">폐쇄</button>
                     </div>
@@ -655,9 +652,7 @@ export default function FieldManagerApp() {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 🎯 [신규 핵심 스마트 UI] 현장 제원 마스터 정보 정밀 수정 팝업창(모달) */}
-      {/* ========================================================= */}
+      {/* 현장 제원 마스터 정보 정밀 수정 팝업창(모달) */}
       {editingSite && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100">
@@ -694,4 +689,36 @@ export default function FieldManagerApp() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 mb-1">현장 소장</label>
-                  <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.manager} onChange={e => setEditingSite({...
+                  {/* 💡 [수정 완료] 수많은 인자 속 누락되었던 객체 업데이트 함수의 구조적 괄호 마감부 정밀 보정 */}
+                  <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.manager} onChange={e => setEditingSite({...editingSite, manager: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border space-y-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 items-center">
+                  <label className="text-slate-500 font-bold">📅 계약 체결일</label>
+                  <input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={editingSite.contractDate} onChange={e => setEditingSite({...editingSite, contractDate: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 items-center">
+                  <label className="text-slate-500 font-bold">🚀 실제 착공일</label>
+                  <input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={editingSite.startDate} onChange={e => setEditingSite({...editingSite, startDate: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 items-center">
+                  <label className="text-slate-500 font-bold">🏁 예정 준공일</label>
+                  <input type="date" className="bg-white border rounded-lg p-1 text-xs font-bold" value={editingSite.endDate} onChange={e => setEditingSite({...editingSite, endDate: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <button type="button" onClick={() => setEditingSite(null)} className="flex-1 bg-slate-100 border text-slate-500 font-bold text-xs py-3 rounded-xl">취소</button>
+                <button type="submit" className="flex-1 bg-blue-800 text-white font-black text-xs py-3 rounded-xl hover:bg-blue-900">수정본 반영</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <SignaturePadPopup isOpen={isSignatureOpen} onClose={() => setIsSignatureOpen(false)} onSave={(url) => setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === currentWorker.id ? { ...w, signatureUrl: url } : w))} workerName={currentWorker?.name} workerId={currentWorker?.id} />
+    </div>
+  );
+}
