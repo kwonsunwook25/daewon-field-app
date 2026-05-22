@@ -79,13 +79,20 @@ export default function FieldManagerApp() {
       id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000, healthOk: true, signatureUrl: 'done',
       timeSlots: [
         { slotId: 'sl-1', corp: '대원전기(주)', siteId: 's-1', constType: '배전', baseHours: 4, otHours: 0 },
-        { slotId: 'sl-2', corp: '우창전력(주)', siteId: 's-3', constType: '변전', baseHours: 4, otHours: 2 }
+        { slotId: 'sl-2', corp: '우창전력(주)', siteId: 's-3', constType: '변전', baseHours: 4, otHours: 0 }
       ]
     },
     {
-      id: 'm-2', corp: '대원전기(주)', constType: '지중송전', name: '이일용', type: '일용직', hourlyWage: 18000, specialAllowance: 0, healthOk: true, signatureUrl: 'done',
+      id: 'm-4', corp: '우창전력(주)', constType: '변전', name: '최전력', type: '정규직', annualSalary: 48000000, specialAllowance: 500000, healthOk: true, signatureUrl: 'done',
       timeSlots: [
-        { slotId: 'sl-3', corp: '대원전기(주)', siteId: 's-2', constType: '배전', baseHours: 8, otHours: 0 }
+        { slotId: 'sl-4', corp: '대원전기(주)', siteId: 's-1', constType: '배전', baseHours: 4, otHours: 0 }
+      ]
+    },
+    {
+      id: 'm-3', corp: '대원전기(주)', constType: '배전', name: '박안전', type: '일용직', hourlyWage: 16500, specialAllowance: 0, healthOk: true, signatureUrl: 'done',
+      timeSlots: [
+        { slotId: 'sl-5', corp: '우창전력(주)', siteId: 's-3', constType: '변전', baseHours: 4, otHours: 0 },
+        { slotId: 'sl-6', corp: '대원전기(주)', siteId: 's-1', constType: '배전', baseHours: 4, otHours: 0 }
       ]
     }
   ]);
@@ -95,10 +102,7 @@ export default function FieldManagerApp() {
     systemStartDate: "2026-01-01", 
     systemCurrentDate: "2026-05-22", 
     pastAccumulatedSiteLogs: {
-      's-1': 148500000, 
-      's-2': 92400000,  
-      's-3': 213000000, 
-      's-4': 45000000   
+      's-1': 148500000, 's-2': 92400000, 's-3': 213000000, 's-4': 45000000   
     }
   });
 
@@ -243,7 +247,7 @@ export default function FieldManagerApp() {
     }
   };
 
-  // 🎯 주간 근로 8시간 한도 제어락 스캔 모듈
+  // 주간 근로 8시간 한도 제어락 스캔 모듈
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
@@ -287,29 +291,6 @@ export default function FieldManagerApp() {
   const finalSummary = getDichotomySummary();
   const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
-
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
-          <div className="text-center"><h2 className="text-xl font-black text-slate-900">⚡ 대원 통합 전산인프라</h2></div>
-          {!isSecondStep ? (
-            <form onSubmit={handleLoginSubmit} className="space-y-3">
-              <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginId} onChange={e => setLoginId(e.target.value)} />
-              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-              <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl">1차 자격 검증</button>
-            </form>
-          ) : (
-            <form onSubmit={handleAuthKeySubmit} className="space-y-3">
-              <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser.name}</div>
-              <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
-              <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl">2차 최종 승인</button>
-            </form>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl">
@@ -491,6 +472,15 @@ export default function FieldManagerApp() {
                     if (currentUser.role !== 'master' && !worker.timeSlots.some(s => s.siteId === activeSiteId)) return null;
 
                     const calc = calculateDetailedWage(worker);
+                    
+                    // 🎯 [핵심 알고리즘 수정 완료] 
+                    // 한 사람의 타임슬롯들을 소속 법인별로 묶어주기 위한 바인딩 맵 구축 (법인명을 Key값으로 그룹핑)
+                    const slotsByCorp = {};
+                    worker.timeSlots.forEach(slot => {
+                      if (!slotsByCorp[slot.corp]) slotsByCorp[slot.corp] = [];
+                      slotsByCorp[slot.corp].push(slot);
+                    });
+
                     return (
                       <div key={worker.id} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4 hover:shadow-md transition-all animate-fade-in">
                         <div className="flex justify-between items-center border-b pb-2.5">
@@ -501,52 +491,71 @@ export default function FieldManagerApp() {
                           {currentUser.role !== 'master' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
                         </div>
 
-                        {/* 타임슬롯 카드 확장 배열 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {worker.timeSlots.map((slot, sIdx) => {
-                            const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
-                            const displayName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
-
-                            return (
-                              <div key={slot.slotId} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs space-y-2 relative">
-                                <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1">
-                                  <span className="truncate max-w-[160px] text-blue-900">📍 #{sIdx + 1} {displayName}</span>
-                                  <span className="text-slate-400 text-[10px]">{slot.corp}</span>
-                                </div>
-                                
-                                {currentUser.role === 'master' ? (
-                                  <div className="text-[11px] font-mono text-slate-600 flex justify-between bg-white border p-2 rounded-xl mt-1 shadow-inner">
-                                    <span>주간: <span className="text-slate-900 font-black">{slot.baseHours}H</span> | 연장: <span className="text-slate-900 font-black">{slot.otHours}H</span></span>
-                                    <span className="text-blue-700 font-black">정산노임: {calc.slots[sIdx]?.grossPay.toLocaleString()}원</span>
-                                  </div>
-                                ) : (
-                                  // 🎯 소장님용 락 제어 바인딩 세팅
-                                  <div className="grid grid-cols-2 gap-2 pt-0.5">
-                                    <div>
-                                      <label className="block text-[9px] text-slate-400 font-bold mb-0.5">주간 공사 시간</label>
-                                      <input 
-                                        type="number" min={0} max={8}
-                                        disabled={slot.siteId !== activeSiteId}
-                                        className={`w-full text-center text-xs font-black border rounded-lg p-2 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
-                                        value={slot.baseHours} 
-                                        onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} 
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-[9px] text-slate-400 font-bold mb-0.5">연장 공사 시간</label>
-                                      <input 
-                                        type="number" min={0} max={24}
-                                        disabled={slot.siteId !== activeSiteId}
-                                        className={`w-full text-center text-xs font-black border rounded-lg p-2 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
-                                        value={slot.otHours} 
-                                        onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} 
-                                      />
-                                    </div>
-                                  </div>
-                                )}
+                        {/* 🎯 [대개편] 법인별 동그라미 컨테이너 팩 묶음 레이아웃 가동 */}
+                        <div className="space-y-3">
+                          {Object.keys(slotsByCorp).map(corpKey => (
+                            <div key={corpKey} className="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-4 space-y-3 shadow-inner">
+                              {/* 그룹 상단 헤더: 소속 법인 타이틀 명시 */}
+                              <div className="text-xs font-black text-blue-900 flex items-center gap-1">
+                                🏢 소속 법인: <span className="text-slate-900 font-bold">{corpKey}</span>
                               </div>
-                            );
-                          })}
+
+                              {/* 해당 법인 그룹 안에 들어있는 현장 슬롯들을 가로 Grid로 널찍하게 정렬 */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {slotsByCorp[corpKey].map(slot => {
+                                  const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
+                                  const rawSiteName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
+                                  
+                                  // 법인명에서 '(주)' 제거하고 간단하게 앞글자만 따서 말머리 생성 (예: [대원])
+                                  const shortCorp = corpKey.replace('(주)', '');
+                                  const fullVisibleSiteName = `[${shortCorp}] ${rawSiteName}`;
+
+                                  // 원본 전체 인덱스 보관용 추적
+                                  const origIdx = worker.timeSlots.findIndex(s => s.slotId === slot.slotId);
+
+                                  return (
+                                    <div key={slot.slotId} className="bg-white p-3.5 rounded-xl border border-slate-200/80 text-xs space-y-2 relative shadow-sm">
+                                      <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1">
+                                        {/* 🎯 [가독성 완료] 현장명 앞에 법인 말머리가 동적으로 붙어 출력 */}
+                                        <span className="truncate max-w-[180px] text-slate-800" title={fullVisibleSiteName}>📍 {fullVisibleSiteName}</span>
+                                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1 rounded">{slot.constType}</span>
+                                      </div>
+                                      
+                                      {currentUser.role === 'master' ? (
+                                        <div className="text-[11px] font-mono text-slate-600 flex justify-between pt-1">
+                                          <span>주간: <span className="text-slate-900 font-black">{slot.baseHours}H</span> | 연장: <span className="text-slate-900 font-black">{slot.otHours}H</span></span>
+                                          <span className="text-blue-700 font-black">정산노임: {calc.slots[origIdx]?.grossPay.toLocaleString()}원</span>
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-2 gap-2 pt-0.5">
+                                          <div>
+                                            <label className="block text-[9px] text-slate-400 font-bold mb-0.5">주간 공사 시간</label>
+                                            <input 
+                                              type="number" min={0} max={8}
+                                              disabled={slot.siteId !== activeSiteId}
+                                              className={`w-full text-center text-xs font-black border rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
+                                              value={slot.baseHours} 
+                                              onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} 
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[9px] text-slate-400 font-bold mb-0.5">연장 공사 시간</label>
+                                            <input 
+                                              type="number" min={0} max={24}
+                                              disabled={slot.siteId !== activeSiteId}
+                                              className={`w-full text-center text-xs font-black border rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
+                                              value={slot.otHours} 
+                                              onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} 
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
 
                         {/* 마스터용 하단 지출 명세 박스 */}
