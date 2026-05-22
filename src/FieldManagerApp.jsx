@@ -54,7 +54,6 @@ export default function FieldManagerApp() {
   const [newSiteContractDate, setNewSiteContractDate] = useState('');
   const [newSiteStartDate, setNewSiteStartDate] = useState('');
   const [newSiteEndDate, setNewSiteEndDate] = useState('');
-  const [editingSite, setEditingSite] = useState(null);
 
   // 전사 인력풀 DB
   const [masterWorkerPool, setMasterWorkerPool] = useState([
@@ -109,7 +108,6 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 플래그 변수
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -254,6 +252,7 @@ export default function FieldManagerApp() {
     }
   };
 
+  // 🎯 [중복 투입 상호 배제 제어락 인젝션] 8시간 상한 정밀 예외 처리기
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
@@ -264,7 +263,7 @@ export default function FieldManagerApp() {
         
         if (otherSlotsTotalBase + numValue > 8) {
           const maxAllowable = 8 - otherSlotsTotalBase;
-          alert(`⚠️ [출역 오폭 입력 차단 - 8시간 자동 락]\n\n'${targetWorker.name}' 근로자는 이미 다른 현장에서 주간 ${otherSlotsTotalBase}시간이 기입되어 있습니다.\n오늘 추가로 입력 가능한 주간 최대 근로시간은 [${maxAllowable}시간] 입니다.`);
+          alert(`⚠️ [중복 타임슬롯 입력 거부 - 하루 8H 한도 락]\n\n'${targetWorker.name}' 근로자는 같은 날 다른 현장에 이미 주간 [ ${otherSlotsTotalBase}시간 ]이 입력되어 있습니다.\n\n동일 시간대 중복 투입은 불가능하므로, 현재 현장에는 최대 [ ${maxAllowable}시간 ] 까지만 추가 기입이 가능합니다.`);
           return; 
         }
       }
@@ -442,9 +441,6 @@ export default function FieldManagerApp() {
               {/* 왼쪽 섹션 (소장님 조작용 현장 선택 및 반장님 터치 패널) */}
               {!isFinanceAccessible && (
                 <div className="lg:col-span-5 space-y-4 animate-fade-in">
-                  {/* 🎯 [초특급 시인성 전면 개편] 
-                      소장님 눈 아프게 만들던 그라데이션 명암(bg-gradient-to-br, 그림자 명암 등) 코드 원천 영구 영포 박멸!!
-                      가장 쨍하고 깨끗한 순백색 고대비 카드 패널(`bg-white border-2 border-slate-300`)로 단단하게 고정 정렬 마감했습니다. */}
                   <section className="bg-white p-5 rounded-3xl border-2 border-slate-300/90 shadow-md space-y-4">
                     <div>
                       <label className="block text-xs font-black text-slate-900 uppercase tracking-wider mb-2">
@@ -525,8 +521,11 @@ export default function FieldManagerApp() {
                                 {slotsByCorp[corpKey].map(slot => {
                                   const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
                                   const rawSiteName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
+                                  
+                                  // 🎯 [완벽 시인성 개편 1] 공사현장명 바로 앞에 대괄호로 법인명을 선두 배치!
                                   const shortCorp = corpKey.replace('(주)', '');
                                   const fullVisibleSiteName = `[${shortCorp}] ${rawSiteName}`;
+                                  
                                   const origIdx = worker.timeSlots.findIndex(s => s.slotId === slot.slotId);
 
                                   return (
@@ -545,11 +544,24 @@ export default function FieldManagerApp() {
                                         <div className="grid grid-cols-2 gap-2 pt-0.5">
                                           <div>
                                             <label className="block text-[9px] text-slate-500 font-bold mb-0.5 text-center">주간 시간</label>
-                                            <input type="number" min={0} max={8} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.baseHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} />
+                                            <input 
+                                              type="number" min={0} max={8} 
+                                              disabled={slot.siteId !== activeSiteId} 
+                                              className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
+                                              value={slot.baseHours} 
+                                              // 🎯 [완벽 시인성 개편 2] 8시간 상호 배제형 인풋 연동 락 검증식 연동
+                                              onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} 
+                                            />
                                           </div>
                                           <div>
                                             <label className="block text-[9px] text-slate-500 font-bold mb-0.5 text-center">연장 시간</label>
-                                            <input type="number" min={0} max={24} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.otHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} />
+                                            <input 
+                                              type="number" min={0} max={24} 
+                                              disabled={slot.siteId !== activeSiteId} 
+                                              className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-400 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} 
+                                              value={slot.otHours} 
+                                              onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} 
+                                            />
                                           </div>
                                         </div>
                                       )}
@@ -652,7 +664,7 @@ export default function FieldManagerApp() {
             )}
 
             <div className="max-w-md mx-auto">
-              <button onClick={() => alert("📢 최종 전산 확정 및 ERP 자산 연동 승인이 완료되었습니다.")} className="w-full bg-blue-800 text-white font-black text-xs sm:text-sm py-3.5 rounded-xl shadow-xl hover:bg-blue-900 transition-all">
+              <button onClick={() => alert("📢 최종 전산 확정 승인이 마감되었습니다.")} className="w-full bg-blue-800 text-white font-black text-xs sm:text-sm py-3.5 rounded-xl shadow-xl hover:bg-blue-900 transition-all">
                 {isMasterOrFieldTotal ? `👑 최종 마감 및 관제 승인 확정 (${finalSummary.totalNet.toLocaleString()}원)` : '당일 현장 일보 데이터 본사 마감 전송'}
               </button>
             </div>
@@ -670,7 +682,9 @@ export default function FieldManagerApp() {
                 <h3 className="font-black text-sm sm:text-lg truncate">🖥️ 대원 기성 원가 파노라마 전광판</h3>
                 <p className="text-slate-400 text-[10px] sm:text-xs truncate font-mono">가동 기점일: {historyConfig.systemStartDate}부 적산 데이터</p>
               </div>
-              <button onClick={() => setIsZoomDashboardOpen(false)} className="bg-white/10 text-white px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black shrink-0">닫기</button>
+              <div className="flex gap-2">
+                <button onClick={() => setIsZoomDashboardOpen(false)} className="bg-white/10 text-white px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black shrink-0">닫기</button>
+              </div>
             </div>
             <div className="p-3 sm:p-6 flex-1 overflow-y-auto space-y-4 bg-slate-50/50">
               <div className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
