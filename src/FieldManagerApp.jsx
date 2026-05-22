@@ -32,6 +32,9 @@ export default function FieldManagerApp() {
   const [newSiteStartDate, setNewSiteStartDate] = useState('');
   const [newSiteEndDate, setNewSiteEndDate] = useState('');
 
+  // 🎯 [신규 상태값] 현재 수정 팝업창(모달)에 열려있는 현장의 데이터 보관함
+  const [editingSite, setEditingSite] = useState(null);
+
   // 마스터 인력 DB
   const [masterWorkerPool, setMasterWorkerPool] = useState([
     { id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000 },
@@ -90,6 +93,31 @@ export default function FieldManagerApp() {
     setNewSiteName(''); setNewSiteAgent(''); setNewSiteManager('');
     setNewSiteContractDate(''); setNewSiteStartDate(''); setNewSiteEndDate('');
     alert(`🏢 [${newSite.siteName}] 현장이 정상 등록되었습니다.`);
+  };
+
+  // 🎯 [신규 기능] 현장 수정 모달 팝업 열기 트리거
+  const handleOpenSiteEditModal = (site) => {
+    setEditingSite({ ...site });
+  };
+
+  // 🎯 [신규 기능] 팝업창에서 수정한 현장 최종본을 전산 DB에 실시간 저장 및 일보 동기화
+  const handleSaveEditedSite = (e) => {
+    e.preventDefault();
+    if (!editingSite.siteName.trim() || !editingSite.agent.trim() || !editingSite.manager.trim()) {
+      alert("현장명, 대리인, 소장 성명은 필수 입력 항목입니다.");
+      return;
+    }
+
+    // 가. 현장 마스터 DB 정보 교체
+    setSiteProperties(siteProperties.map(s => s.id === editingSite.id ? editingSite : s));
+
+    // 나. 만약 현재 일보 작성창에서 선택 중인 현장을 수정했다면 대표 공종도 실시간 리셋 전파
+    if (selectedSiteId === editingSite.id) {
+      setSelectedType(editingSite.constType);
+    }
+
+    setEditingSite(null); // 모달 닫기
+    alert(`⚙️ 현장 제원 및 스케줄 변경 사항이 전산에 실시간 반영되었습니다.`);
   };
 
   // 현장 폐쇄 함수
@@ -229,7 +257,7 @@ export default function FieldManagerApp() {
     }
     const basePay = worker.baseHours * baseHourlyRate;
     const otPay = worker.otHours * baseHourlyRate * 1.5; 
-    const totalGrossPay = Math.round(basePay + mtPay); // mtPay 고정 연동 오타 수정 완료
+    const totalGrossPay = Math.round(basePay + otPay);
     const severancePay = Math.round(totalGrossPay / 12);
     const incomeTax = Math.round(totalGrossPay * 0.015); 
     const localIncomeTax = Math.round(incomeTax * 0.1); 
@@ -320,6 +348,8 @@ export default function FieldManagerApp() {
                     <div><h4 className="text-xs font-black text-slate-900">{s.siteName}</h4><span className="text-[10px] text-slate-400 block">{s.corp}</span></div>
                     <div className="flex items-center gap-1">
                       <span className="bg-blue-50 text-blue-700 font-bold text-[9px] px-1.5 py-0.5 rounded border">{s.constType}</span>
+                      {/* 🎯 [수정 버튼 패널 추가 배치] */}
+                      <button onClick={() => handleOpenSiteEditModal(s)} className="bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold px-1.5 py-0.5 rounded">수정</button>
                       <button onClick={() => handleDeleteSite(s.id, s.siteName)} className="bg-red-50 text-red-600 border border-red-200 text-[9px] font-bold px-1.5 py-0.5 rounded">폐쇄</button>
                     </div>
                   </div>
@@ -625,7 +655,43 @@ export default function FieldManagerApp() {
         </div>
       )}
 
-      <SignaturePadPopup isOpen={isSignatureOpen} onClose={() => setIsSignatureOpen(false)} onSave={(url) => setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === currentWorker.id ? { ...w, signatureUrl: url } : w))} workerName={currentWorker?.name} workerId={currentWorker?.id} />
-    </div>
-  );
-}
+      {/* ========================================================= */}
+      {/* 🎯 [신규 핵심 스마트 UI] 현장 제원 마스터 정보 정밀 수정 팝업창(모달) */}
+      {/* ========================================================= */}
+      {editingSite && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100">
+            <div className="bg-slate-900 p-4 text-white">
+              <h3 className="font-black text-sm">✏️ 현장 마스터 제원 수정 패널</h3>
+              <p className="text-[10px] text-slate-400 mt-0.5">선택된 현장의 소장 및 계약 공기 일정을 수정합니다.</p>
+            </div>
+            
+            <form onSubmit={handleSaveEditedSite} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1">현장명 (공사명)</label>
+                <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.siteName} onChange={e => setEditingSite({...editingSite, siteName: e.target.value})} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">소속 법인</label>
+                  <select className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.corp} onChange={e => setEditingSite({...editingSite, corp: e.target.value})}>
+                    {CORPORATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">대표 공종</label>
+                  <select className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.constType} onChange={e => setEditingSite({...editingSite, constType: e.target.value})}>
+                    {CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">현장 대리인</label>
+                  <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.agent} onChange={e => setEditingSite({...editingSite, agent: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">현장 소장</label>
+                  <input type="text" className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-bold outline-none" value={editingSite.manager} onChange={e => setEditingSite({...
