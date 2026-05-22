@@ -19,7 +19,7 @@ export default function FieldManagerApp() {
   const [securityAuthCode, setSecurityAuthCode] = useState(''); 
   const [isSecondStep, setIsSecondStep] = useState(false); 
 
-  // [총괄 등급 전면 확장 유저 DB]
+  // [👑 1번 사수] 권세원 최고마스터 / 권선욱 현장총괄 / 권소영 재무총괄 삼각 계정 명부
   const [userRoster, setUserRoster] = useState([
     { id: 'u-1', loginId: 'master', name: '권세원 최고마스터', role: 'master', password: '123', authKey: '7777' },
     { id: 'u-4', loginId: 'sunwook', name: '권선욱 현장총괄', role: 'master', password: '123', authKey: '8888' }, 
@@ -36,7 +36,7 @@ export default function FieldManagerApp() {
 
   const [activeTab, setActiveTab] = useState('daily');
 
-  // 현장 마스터 정보 DB
+  // 현장 마스터 정보 기본 전산 데이터 (ID 연동용 고정축)
   const [siteProperties, setSiteProperties] = useState([
     { id: 's-1', corp: '대원전기(주)', siteName: '증평 지중화 공사 현장', constType: '배전', agent: '홍길동', manager: '김철수', contractDate: '2026-01-02', startDate: '2026-01-15', endDate: '2026-12-31' },
     { id: 's-2', corp: '대원전기(주)', siteName: '청주 한전 배전단가 현장', constType: '배전', agent: '이영희', manager: '박반장', contractDate: '2026-01-01', startDate: '2026-01-01', endDate: '2026-12-31' },
@@ -70,13 +70,14 @@ export default function FieldManagerApp() {
   const [activeSiteId, setActiveSiteId] = useState('');
   const [isZoomDashboardOpen, setIsZoomDashboardOpen] = useState(false);
 
-  // 실시간 출역 명단 데이터셋
+  // 🎯 [인증 후 하얀오류 원천 봉쇄 수리구역] 
+  // 샘플 데이터셋 내부의 현장 매핑 식별값(siteId)을 상단 인프라 축과 완벽하게 1:1 결합 일치 완료!
   const [todayActiveWorkers, setTodayActiveWorkers] = useState([
     {
       id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000, healthOk: true, signatureUrl: 'done',
       timeSlots: [
         { slotId: 'sl-1', corp: '대원전기(주)', siteId: 's-1', constType: '배전', baseHours: 4, otHours: 0 },
-        { slotId: 'sl-2', corp: '우창전력(주)', siteId: 's-3', constType: '변전', baseHours: 4, otHours: 0 }
+        { slotId: 'sl-2', corp: '대원전기(주)', siteId: 's-2', constType: '배전', baseHours: 4, otHours: 0 }
       ]
     },
     {
@@ -103,7 +104,7 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 플래그 변수
+  // 권한 플래그 변수 선언 위치 고정
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -134,7 +135,6 @@ export default function FieldManagerApp() {
     if (currentUser.authKey === securityAuthCode.trim()) {
       setIsLoggedIn(true);
       setIsSecondStep(false);
-      alert(`🔒 인증 통과: [${currentUser.name}] 등급 접속 허가.`);
     } else {
       alert("⚠️ 보안 인증키 오류");
     }
@@ -213,7 +213,6 @@ export default function FieldManagerApp() {
         }
       } else {
         const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
-        // 🎯 [수리 완료 1] const 지정을 명시하여 브라우저 강제 다운 차단!!
         const remainingHours = 8 - currentTotalBase;
         const initialSlotBase = remainingHours > 0 ? remainingHours : 0;
 
@@ -246,6 +245,32 @@ export default function FieldManagerApp() {
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
   };
 
+  // 대시보드 안분 집계 파서
+  const getDichotomySummary = () => {
+    const corpMap = {}; CORPORATIONS.forEach(c => { corpMap[c] = 0; });
+    const siteDailyMap = {}; 
+    const siteTotalAccumMap = { ...historyConfig.pastAccumulatedSiteLogs }; 
+    let totalGross = 0; let totalNet = 0;
+    
+    todayActiveWorkers.forEach(w => {
+      const calc = calculateDetailedWage(w); totalNet += calc.netPay;
+      calc.slots.forEach(s => {
+        if (corpMap[s.corp] !== undefined) { corpMap[s.corp] += s.grossPay; totalGross += s.grossPay; }
+        if (s.siteId) {
+          if (!siteDailyMap[s.siteId]) siteDailyMap[s.siteId] = 0;
+          siteDailyMap[s.siteId] += s.grossPay;
+          if (!siteTotalAccumMap[s.siteId]) siteTotalAccumMap[s.siteId] = 0;
+          siteTotalAccumMap[s.siteId] += s.grossPay;
+        }
+      });
+    });
+    return { corpMap, siteDailyMap, siteTotalAccumMap, totalGross, totalNet };
+  };
+
+  const finalSummary = getDichotomySummary();
+  const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
+  const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
+
   // 로그인 화면 게이트웨이
   if (!isLoggedIn) {
     return (
@@ -254,14 +279,14 @@ export default function FieldManagerApp() {
           <div className="text-center"><h2 className="text-xl font-black text-slate-900">⚡ 대원 통합 전산인프라</h2></div>
           {!isSecondStep ? (
             <form onSubmit={handleLoginSubmit} className="space-y-3">
-              <input type="text" placeholder="ID 입력" { ...{ required: true } } className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginId} onChange={e => setLoginId(e.target.value)} />
-              <input type="password" placeholder="비밀번호" { ...{ required: true } } className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
+              <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginId} onChange={e => setLoginId(e.target.value)} />
+              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
               <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl">1차 자격 검증</button>
             </form>
           ) : (
             <form onSubmit={handleAuthKeySubmit} className="space-y-3">
               <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser.name}</div>
-              <input type="password" { ...{ required: true } } maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
+              <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
               <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl">2차 최종 승인</button>
             </form>
           )}
@@ -366,7 +391,6 @@ export default function FieldManagerApp() {
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminType} onChange={e => setAdminType(e.target.value)}><option value="">공종 선택</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* 🎯 [수리 완료 2] 인자 괄호 및 핸들러 리얼타임 구조 완벽 정상화 */}
                   <input type="text" placeholder="근로자 성명" className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminName} onChange={e => setAdminName(e.target.value)} />
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminWorkerType} onChange={e => setAdminWorkerType(e.target.value)}><option value="정규직">정규직</option><option value="일용직">일용직</option></select>
                 </div>
@@ -396,6 +420,7 @@ export default function FieldManagerApp() {
                         <span className="text-xs font-bold text-blue-600 mr-1">시급: {isFinanceAccessible ? `${calculatedRate.toLocaleString()}원` : '🔒 보안'}</span>
                         <div className="flex gap-1">
                           {isMasterOrFieldTotal && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>}
+                          <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded font-black text-[10px]">삭제</button>
                         </div>
                       </div>
                     </div>
@@ -515,7 +540,7 @@ export default function FieldManagerApp() {
                                       {isFinanceAccessible ? (
                                         <div className="text-[10px] sm:text-[11px] font-mono text-slate-600 flex justify-between pt-1 gap-1">
                                           <span>주: <span className="text-slate-900 font-black">{slot.baseHours}H</span> | 연: <span className="text-slate-900 font-black">{slot.otHours}H</span></span>
-                                          <span className="text-blue-700 font-black text-right">노임: {calc.slots[origIdx]?.grossPay.toLocaleString()}원</span>
+                                          <span className="text-blue-700 font-black text-right">노임: {calc.slots[origIdx] ? `${calc.slots[origIdx].grossPay.toLocaleString()}원` : '0원'}</span>
                                         </div>
                                       ) : (
                                         <div className="grid grid-cols-2 gap-2 pt-0.5">
