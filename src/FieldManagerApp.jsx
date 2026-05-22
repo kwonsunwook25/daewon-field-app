@@ -139,7 +139,7 @@ export default function FieldManagerApp() {
     setIsLoggedIn(false); setCurrentUser(null); setLoginId(''); setLoginPassword(''); setSecurityAuthCode(''); setActiveTab('daily'); setActiveSiteId('');
   };
 
-  // 인프라 생성 부품들
+  // 인프라 생성 로직들
   const handleCreateUser = (e) => {
     e.preventDefault();
     const newUser = { id: `user-${Date.now()}`, loginId: newUserId.trim(), name: newUserName.trim(), role: newUserRole, password: newUserPassword, authKey: newUserAuthKey.trim() };
@@ -167,7 +167,7 @@ export default function FieldManagerApp() {
       id: `admin-${Date.now()}`, corp: adminCorp, constType: adminType, name: adminName.trim(), type: adminWorkerType, specialAllowance: allowanceNum,
       ...(adminWorkerType === '정규직' ? { annualSalary: wageNum } : { hourlyWage: wageNum })
     };
-    masterWorkerPool.push(newWorker);
+    setMasterWorkerPool([...masterWorkerPool, newWorker]);
     setAdminName(''); setAdminWageInput(''); setAdminAllowanceInput('');
     alert(`✅ 인력 등록 완료.`);
   };
@@ -229,10 +229,9 @@ export default function FieldManagerApp() {
           setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { ...w, timeSlots: w.timeSlots.filter(s => s.siteId !== activeSiteId) } : w));
         }
       } else {
-        // 🎯 추가할 때도 기본 주간 근무시간 제한 체크 (다른 현장 총합 검수)
         const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
         const remainingHours = 8 - currentTotalBase;
-        const initialSlotBase = remainingHours > 0 ? remainingHours : 0; // 남은 시간만큼만 기본 배정, 없으면 0
+        const initialSlotBase = remainingHours > 0 ? remainingHours : 0;
 
         setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { 
           ...w, 
@@ -244,27 +243,22 @@ export default function FieldManagerApp() {
     }
   };
 
-  // 🎯 [핵심 개포 통합 수리부] 주간 근무 시간 하루 총합 8H 제한 검증 안전 장치 가동
+  // 🎯 주간 근로 8시간 한도 제어락 스캔 모듈
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
-      // 1. 해당 대상 반장님의 기존 전산 상태값 추적
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
       if (targetWorker) {
-        // 2. '현재 수정 중인 현장'을 제외한 다른 현장들의 주간 공사 시간만 필터링하여 합산 구하기
         const otherSlotsTotalBase = targetWorker.timeSlots
           .filter(s => s.siteId !== siteId)
           .reduce((sum, s) => sum + s.baseHours, 0);
         
-        // 3. [다른 현장 합산 + 지금 소장님이 친 숫자] 가 8H 한계선을 돌파하는지 검증
         if (otherSlotsTotalBase + numValue > 8) {
           const maxAllowable = 8 - otherSlotsTotalBase;
           alert(`⚠️ [출역 오폭 입력 차단 - 8시간 자동 락]\n\n'${targetWorker.name}' 근로자는 이미 다른 현장에서 주간 ${otherSlotsTotalBase}시간이 기입되어 있습니다.\n오늘 추가로 입력 가능한 주간 최대 근로시간은 [${maxAllowable}시간] 입니다.`);
-          return; // 함수 강제 종료 ➔ 전산 입력 튕겨내기 (락 발동 🔒)
+          return; 
         }
       }
     }
-    
-    // 검증을 무사히 통과했거나 연장 시간(otHours)인 경우 정상 값 업데이트 진행
     setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === workerId ? { ...w, timeSlots: w.timeSlots.map(s => s.siteId === siteId ? { ...s, [field]: numValue } : s) } : w));
   };
 
@@ -293,6 +287,29 @@ export default function FieldManagerApp() {
   const finalSummary = getDichotomySummary();
   const currentSelectedSiteDetail = siteProperties.find(s => s.id === activeSiteId);
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+          <div className="text-center"><h2 className="text-xl font-black text-slate-900">⚡ 대원 통합 전산인프라</h2></div>
+          {!isSecondStep ? (
+            <form onSubmit={handleLoginSubmit} className="space-y-3">
+              <input type="text" placeholder="ID 입력" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginId} onChange={e => setLoginId(e.target.value)} />
+              <input type="password" placeholder="비밀번호" required className="w-full bg-slate-50 border p-3 rounded-xl text-xs font-bold" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
+              <button type="submit" className="w-full bg-blue-700 text-white font-black text-xs py-3.5 rounded-xl">1차 자격 검증</button>
+            </form>
+          ) : (
+            <form onSubmit={handleAuthKeySubmit} className="space-y-3">
+              <div className="bg-blue-50 text-blue-900 p-3 rounded-xl text-xs font-bold">👤 소유주: {currentUser.name}</div>
+              <input type="password" required maxLength={4} className="w-full bg-slate-50 border p-3 rounded-xl text-sm font-black text-center tracking-widest" value={securityAuthCode} onChange={e => setSecurityAuthCode(e.target.value)} />
+              <button type="submit" className="w-full bg-emerald-600 text-white font-black text-xs py-3.5 rounded-xl">2차 최종 승인</button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl">
@@ -481,7 +498,7 @@ export default function FieldManagerApp() {
                             <span className="text-lg font-black text-slate-900 mr-2">{worker.name}</span>
                             <span className="text-xs text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-md">원천소속: {worker.corp} | {worker.type}</span>
                           </div>
-                          {currentUser.role !== 'manager' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
+                          {currentUser.role !== 'master' && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold hover:underline">현장제외</button>}
                         </div>
 
                         {/* 타임슬롯 카드 확장 배열 */}
@@ -503,7 +520,7 @@ export default function FieldManagerApp() {
                                     <span className="text-blue-700 font-black">정산노임: {calc.slots[sIdx]?.grossPay.toLocaleString()}원</span>
                                   </div>
                                 ) : (
-                                  // 🎯 [락 필터 연동 개편] 수리된 handleUpdateSlotHours 연동 바인딩
+                                  // 🎯 소장님용 락 제어 바인딩 세팅
                                   <div className="grid grid-cols-2 gap-2 pt-0.5">
                                     <div>
                                       <label className="block text-[9px] text-slate-400 font-bold mb-0.5">주간 공사 시간</label>
@@ -532,7 +549,7 @@ export default function FieldManagerApp() {
                           })}
                         </div>
 
-                        {/* 마스터용 하단 243제 종합 지출 명세 박스 */}
+                        {/* 마스터용 하단 지출 명세 박스 */}
                         {currentUser.role === 'master' && (
                           <div className="bg-slate-900 text-slate-300 rounded-2xl p-3.5 text-xs grid grid-cols-3 gap-4 font-mono shadow-md border border-slate-800">
                             <div><span className="text-slate-500 block text-[10px] font-bold">📊 당일 총 노임 원가액</span><span className="text-white font-black text-sm">{calc.totalGross.toLocaleString()} 원</span></div>
