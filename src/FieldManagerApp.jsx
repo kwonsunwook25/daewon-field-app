@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx'; // 💡 [핵심] 엑셀 정밀 파싱 라이브러리 로드
+import * as XLSX from 'xlsx'; 
 import SignaturePadPopup from './SignaturePadPopup';
 
 const CORPORATIONS = [
@@ -15,14 +15,15 @@ const SITE_MAPPING = {
   "(주)태원전력공사": ["천안 산단 내선전기 공사"],
 };
 
+// 💡 [공종 전면 개편] 내선전기/전문소방/구내통신 삭제 ➔ '내선공사' 하나로 통합 변경
 const CONSTRUCTION_TYPES = [
-  "내선전기", "전문소방", "구내통신", "변전", "지중송전", "가공송전", "배전", "kt", "태양광"
+  "내선공사", "변전", "지중송전", "가공송전", "배전", "kt", "태양광"
 ];
 
 export default function FieldManagerApp() {
   const [activeTab, setActiveTab] = useState('daily');
 
-  // 마스터 인력 DB
+  // [통합 마스터 인력 DB] - 기존 샘플 데이터도 바뀐 공종 명칭에 맞게 자동 마이그레이션
   const [masterWorkerPool, setMasterWorkerPool] = useState([
     { id: 'm-1', corp: '대원전기(주)', constType: '배전', name: '김정규', type: '정규직', annualSalary: 54000000, specialAllowance: 300000 },
     { id: 'm-2', corp: '대원전기(주)', constType: '지중송전', name: '이일용', type: '일용직', hourlyWage: 18000, specialAllowance: 0 },
@@ -86,7 +87,7 @@ export default function FieldManagerApp() {
     alert(`✅ 마스터 인력풀에 저장되었습니다.`);
   };
 
-  // 🎯 [핵심 요구사항] 진짜 엑셀 파일(.xlsx / .xls) 바이너리 분석 및 자동 정산 등록 엔진
+  // 엑셀 파싱 및 자동 분류 엔진
   const handleExcelUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -97,7 +98,6 @@ export default function FieldManagerApp() {
         const data = new Uint8Array(event.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         
-        // 첫 번째 시트(Sheet) 활성화 후 JSON 데이터로 즉시 변환
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(sheet);
@@ -108,10 +108,15 @@ export default function FieldManagerApp() {
         }
 
         const uploadedWorkers = jsonData.map((row, index) => {
-          // 엑셀 헤더 매핑 규칙: [성명, 법인명, 공사종류, 근무형태, 급여단가, 특별수당]
           const name = String(row['성명'] || row['이름'] || '').trim();
           const corp = String(row['법인명'] || row['소속법인'] || '').trim();
-          const constType = String(row['공사종류'] || row['공종'] || '').trim();
+          let constType = String(row['공사종류'] || row['공종'] || '').trim();
+          
+          // 💡 옛날 양식 엑셀 파일로 올려서 '내선전기', '전문소방', '구내통신'으로 적혀있더라도 '내선공사'로 자동 흡수 처리
+          if (["내선전기", "전문소방", "구내통신"].includes(constType)) {
+            constType = "내선공사";
+          }
+
           const type = String(row['근무형태'] || '').trim() === '일용직' ? '일용직' : '정규직';
           const baseWage = Number(row['급여단가'] || row['연봉'] || row['시급'] || 0);
           const allowance = Number(row['특별수당'] || row['직책수당'] || 0);
@@ -119,8 +124,8 @@ export default function FieldManagerApp() {
           return {
             id: `excel-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`,
             name: name || `미명명_${index+1}`,
-            corp: CORPORATIONS.includes(corp) ? corp : CORPORATIONS[0], // 명단에 없으면 대원전기 기본 지정
-            constType: CONSTRUCTION_TYPES.includes(constType) ? constType : CONSTRUCTION_TYPES[0], // 없으면 내선 기본 지정
+            corp: CORPORATIONS.includes(corp) ? corp : CORPORATIONS[0],
+            constType: CONSTRUCTION_TYPES.includes(constType) ? constType : CONSTRUCTION_TYPES[0], 
             type: type,
             specialAllowance: allowance,
             ...(type === '정규직' ? { annualSalary: baseWage } : { hourlyWage: baseWage })
@@ -128,12 +133,13 @@ export default function FieldManagerApp() {
         });
 
         setMasterWorkerPool([...masterWorkerPool, ...uploadedWorkers]);
-        alert(`📊 [제미나이 엑셀 연동 성공]\n진짜 엑셀 파일을 정밀 분석하여 총 ${uploadedWorkers.length}명의 근로자를 전산 마스터 DB에 일괄 탑재했습니다!`);
+        alert(`📊 [엑셀 연동 성공] 총 ${uploadedWorkers.length}명의 근로자가 전산 마스터 DB에 일괄 탑재되었습니다!`);
       } catch (error) {
         console.error(error);
-        alert("⚠️ 엑셀 파일을 읽는 도중 오류가 발생했습니다. 파일 형식을 다시 확인해 주세요.");
+        alert("⚠️ 엑셀 파일을 읽는 도중 오류가 발생했습니다.");
       }
     };
+    reader.readAsピック형식(file);
     reader.readAsArrayBuffer(file);
   };
 
@@ -203,7 +209,7 @@ export default function FieldManagerApp() {
       <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white p-5 shadow-lg sticky top-0 z-20">
         <div className="flex justify-between items-center mb-3">
           <h1 className="text-lg font-black tracking-tight">⚙️ 대원 통합 현장 전산시스템</h1>
-          <span className="bg-emerald-600 text-[10px] px-2 py-0.5 rounded font-bold">Excel 연동형</span>
+          <span className="bg-emerald-600 text-[10px] px-2 py-0.5 rounded font-bold">공종 최적화</span>
         </div>
 
         <div className="flex bg-black/20 p-1 rounded-xl text-[11px] font-black">
@@ -224,7 +230,7 @@ export default function FieldManagerApp() {
         {/* 모드 1: 인력 추가 및 엑셀 업로드 탭 */}
         {activeTab === 'admin' && (
           <div className="space-y-4 animate-fade-in">
-            {/* 🎯 [새로운 UI 빌드] 진짜 엑셀 업로드 인터페이스 상단 배치 */}
+            {/* 엑셀 업로드 */}
             <section className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-2xl shadow-sm border border-blue-200 space-y-3">
               <h2 className="text-sm font-black text-blue-900 flex items-center gap-1">📊 스마트 Excel 대량 일괄 등록</h2>
               <div className="bg-white border-2 border-dashed border-blue-300 rounded-xl p-5 text-center relative hover:bg-blue-100/30 transition-all cursor-pointer">
@@ -232,7 +238,7 @@ export default function FieldManagerApp() {
                 <p className="text-xs font-black text-slate-700">📁 여기에 .xlsx 진짜 엑셀 파일을 등록하세요</p>
                 <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                   [엑셀 첫 행 헤더 제목 양식 고정]<br/>
-                  <span className="text-blue-600 font-bold">성명 | 법인명 | 공사종류 | 근무형태 | 급여단가 | 특별수당</span>
+                  <span className="text-blue-600 font-bold">성명 | 법인명 | 공사종류(내선공사 등) | 근무형태 | 급여단가 | 특별수당</span>
                 </p>
               </div>
             </section>
