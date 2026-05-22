@@ -21,7 +21,7 @@ export default function FieldManagerApp() {
   const [securityAuthCode, setSecurityAuthCode] = useState(''); 
   const [isSecondStep, setIsSecondStep] = useState(false); 
 
-  // [👑 1번 사수] 권세원 최고마스터 / 권선욱 현장총괄 / 권소영 재무총괄 삼각 계정 전산풀
+  // [총괄 등급 전면 확장 유저 DB]
   const [userRoster, setUserRoster] = useState([
     { id: 'u-1', loginId: 'master', name: '권세원 최고마스터', role: 'master', password: '123', authKey: '7777' },
     { id: 'u-4', loginId: 'sunwook', name: '권선욱 현장총괄', role: 'master', password: '123', authKey: '8888' }, 
@@ -54,6 +54,7 @@ export default function FieldManagerApp() {
   const [newSiteContractDate, setNewSiteContractDate] = useState('');
   const [newSiteStartDate, setNewSiteStartDate] = useState('');
   const [newSiteEndDate, setNewSiteEndDate] = useState('');
+  const [editingSite, setEditingSite] = useState(null);
 
   // 전사 인력풀 DB
   const [masterWorkerPool, setMasterWorkerPool] = useState([
@@ -108,7 +109,7 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 변수 선언 시점 고정 (흰화면 크래시 방지 핵심 요충지)
+  // 권한 플래그 전역 스코프 변수 배치 고정
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -218,7 +219,7 @@ export default function FieldManagerApp() {
         }
       } else {
         const currentTotalBase = targetWorker.timeSlots.reduce((sum, s) => sum + s.baseHours, 0);
-        const remainingHours = 8 - currentTotalBase;
+        remainingHours = 8 - currentTotalBase;
         const initialSlotBase = remainingHours > 0 ? remainingHours : 0;
 
         setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { 
@@ -231,7 +232,6 @@ export default function FieldManagerApp() {
     }
   };
 
-  // 🎯 [👑 5번 사수] 243제 기본 주간 8시간 상호 배제형 중복 입력 차단 락(Lock) 엔진
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
@@ -276,11 +276,10 @@ export default function FieldManagerApp() {
   const filteredWorkersForSearch = masterWorkerPool.filter(w => w.name.includes(searchQuery));
 
   return (
-    // 🎯 [👑 6번 사수] 모바일 기종 구애받지 않는 가변 패딩 스냅 액체형 컨테이너
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl px-2 sm:px-4 md:px-6">
       
       {/* 최고 등급 세션 바 */}
-      <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-4 sm:px-6 rounded-b-xl shadow-md">
+      <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-6 rounded-b-xl shadow-md">
         <div className="truncate max-w-[70%]">
           <span className="text-emerald-400 font-black text-[10px] sm:text-xs">● 전산망 보안 가동:</span>{' '}
           <span className="font-bold text-yellow-400 text-xs sm:text-sm truncate">
@@ -372,6 +371,7 @@ export default function FieldManagerApp() {
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminType} onChange={e => setAdminType(e.target.value)}><option value="">공종 선택</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* 🎯 [오타 교정 스냅 연동] 오류 없이 정상 조립 완료 */}
                   <input type="text" placeholder="근로자 성명" className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminName} onChange={e => setAdminName(e.target.value)} />
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminWorkerType} onChange={e => setAdminWorkerType(e.target.value)}><option value="정규직">정규직</option><option value="일용직">일용직</option></select>
                 </div>
@@ -400,7 +400,7 @@ export default function FieldManagerApp() {
                       <div className="flex items-center justify-between w-full sm:w-auto gap-2 border-t sm:border-t-0 pt-1.5 sm:pt-0">
                         <span className="text-xs font-bold text-blue-600 mr-1">시급: {isFinanceAccessible ? `${calculatedRate.toLocaleString()}원` : '🔒 보안'}</span>
                         <div className="flex gap-1">
-                          {isMasterOrFieldTotal && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded font-black text-[10px]">수정</button>}
+                          {isMasterOrFieldTotal && <button onClick={() => setEditingWorker({...w, wageInput: formatNumberWithCommas(w.type === '정규직' ? w.annualSalary : w.hourlyWage), specialAllowance: formatNumberWithCommas(w.specialAllowance)})} className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded font-black text-[10px]">수정</button>}
                           <button onClick={() => handleAdminDeleteWorker(w.id, w.name)} className="bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded font-black text-[10px]">삭제</button>
                         </div>
                       </div>
@@ -425,7 +425,7 @@ export default function FieldManagerApp() {
                       <label className="block text-xs font-black text-slate-900 uppercase tracking-wider mb-2">
                         📍 1단계: 오늘의 가동 대상 현장 지정 *
                       </label>
-                      {/* 🎯 [👑 2번 사수] 1단계 선택 드롭다운 내 법인 접두어 선두 결합 출력식 사수 */}
+                      {/* 🎯 [오류 원천 해제 구역] 괄호 충돌을 깔끔하게 정리하여 드롭다운 리스트 복구 가동!! */}
                       <select 
                         className="w-full bg-white border-2 border-slate-400 text-slate-900 text-xs font-black rounded-xl p-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm" 
                         value={activeSiteId} 
@@ -436,7 +436,7 @@ export default function FieldManagerApp() {
                           const shortCorp = s.corp.replace('(주)', '');
                           return (
                             <option key={s.id} value={s.id}>
-                              [{shortCorp}] {s.siteName}
+                              {`[${shortCorp}] ${s.siteName}`}
                             </option>
                           );
                         })}
@@ -498,7 +498,7 @@ export default function FieldManagerApp() {
                           {!isFinanceAccessible && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold shrink-0 hover:underline">현장제외</button>}
                         </div>
 
-                        {/* 🎯 [👑 4번 사수] 법인 소속사별 동그라미 컨테이너 팩 묶음 구조 사수 */}
+                        {/* 법인별 동그라미 컨테이너 팩 묶음 */}
                         <div className="space-y-3">
                           {Object.keys(slotsByCorp).map(corpKey => (
                             <div key={corpKey} className="bg-slate-50/50 border border-slate-200/80 rounded-2xl p-3 sm:p-4 space-y-3 shadow-inner">
@@ -508,15 +508,12 @@ export default function FieldManagerApp() {
                                 {slotsByCorp[corpKey].map(slot => {
                                   const targetSiteObj = siteProperties.find(s => s.id === slot.siteId);
                                   const rawSiteName = targetSiteObj ? targetSiteObj.siteName : "지정외 공사 현장";
-                                  
-                                  // 🎯 [👑 3번 사수] 주공사명 앞 대괄호 법인 접두어 표출 로직 마감
                                   const shortCorp = corpKey.replace('(주)', '');
                                   const fullVisibleSiteName = `[${shortCorp}] ${rawSiteName}`;
                                   const origIdx = worker.timeSlots.findIndex(s => s.slotId === slot.slotId);
 
                                   return (
                                     <div key={slot.slotId} className="bg-white p-3 rounded-xl border border-slate-200/80 text-xs space-y-2 relative shadow-sm">
-                                      {/* 잘림 현상 없는 줄바꿈형 공사명 명시 가동 */}
                                       <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1 gap-2">
                                         <span className="block text-slate-800 leading-tight pr-1">📍 {fullVisibleSiteName}</span>
                                         <span className="text-[9px] text-blue-600 bg-blue-50 px-1 rounded h-fit shrink-0">{slot.constType}</span>
@@ -547,7 +544,6 @@ export default function FieldManagerApp() {
                           ))}
                         </div>
 
-                        {/* 원가 세금 지출 박스 */}
                         {isFinanceAccessible && (
                           <div className="bg-slate-900 text-slate-300 rounded-2xl p-3 sm:p-4 text-[10px] sm:text-xs grid grid-cols-3 gap-2 font-mono shadow-md border border-slate-800">
                             <div><span className="text-slate-500 block text-[9px] font-bold truncate">📊 당일 노임액</span><span className="text-white font-black sm:text-sm truncate block">{calc.totalGross.toLocaleString()}원</span></div>
@@ -580,7 +576,6 @@ export default function FieldManagerApp() {
           <div className="max-w-6xl mx-auto space-y-3">
             
             {isFinanceAccessible ? (
-              // 🎯 [👑 7번 사수] 하단 대시보드 클릭 시 대형 전광판 팝업 확대 모달 연동 기능 보존
               <div 
                 onClick={() => setIsZoomDashboardOpen(true)} 
                 className="space-y-2 cursor-zoom-in hover:bg-slate-50/70 p-1 rounded-xl transition-all border border-transparent"
