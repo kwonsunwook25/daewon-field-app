@@ -108,7 +108,7 @@ export default function FieldManagerApp() {
     }
   });
 
-  // 권한 플래그 변수 안전 배치
+  // 권한 플래그 변수
   const isMasterOrFieldTotal = currentUser && currentUser.role === 'master';
   const isFinanceAccessible = currentUser && (currentUser.role === 'master' || currentUser.role === 'finance');
 
@@ -253,7 +253,6 @@ export default function FieldManagerApp() {
     }
   };
 
-  // 주간 근로 8시간 한도 제어락 스캔 모듈
   const handleUpdateSlotHours = (workerId, siteId, field, numValue) => {
     if (field === 'baseHours') {
       const targetWorker = todayActiveWorkers.find(w => w.id === workerId);
@@ -302,7 +301,7 @@ export default function FieldManagerApp() {
     <div className="max-w-7xl mx-auto bg-slate-100 min-h-screen pb-60 font-sans text-slate-800 antialiased shadow-xl px-2 sm:px-4 md:px-6">
       
       {/* 최고 등급 세션 바 */}
-      <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-4 sm:px-6 rounded-b-xl shadow-md">
+      <div className="bg-slate-900 text-white p-3 text-xs flex justify-between items-center px-6 rounded-b-xl shadow-md">
         <div className="truncate max-w-[70%]">
           <span className="text-emerald-400 font-black text-[10px] sm:text-xs">● 전산망 보안 가동:</span>{' '}
           <span className="font-bold text-yellow-400 text-xs sm:text-sm truncate">
@@ -394,7 +393,6 @@ export default function FieldManagerApp() {
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminType} onChange={e => setAdminType(e.target.value)}><option value="">공종 선택</option>{CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* 🎯 [오타 완벽 해결 부품] e => setAdminName(e.target.value) 정밀 바인딩 */}
                   <input type="text" placeholder="근로자 성명" className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminName} onChange={e => setAdminName(e.target.value)} />
                   <select className="bg-slate-50 border rounded-xl p-3 text-xs font-bold outline-none" value={adminWorkerType} onChange={e => setAdminWorkerType(e.target.value)}><option value="정규직">정규직</option><option value="일용직">일용직</option></select>
                 </div>
@@ -443,31 +441,39 @@ export default function FieldManagerApp() {
               {/* 왼쪽 섹션 (소장님 조작용 현장 선택 및 반장님 터치 패널) */}
               {!isFinanceAccessible && (
                 <div className="lg:col-span-5 space-y-4 animate-fade-in">
-                  <section className="bg-gradient-to-br from-blue-955 to-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-md space-y-3 border border-slate-800">
-                    <label className="block text-xs font-black text-blue-300 uppercase tracking-wider">1단계: 오늘의 가동 대상 현장 지정 *</label>
-                    <select className="w-full bg-slate-800 border border-slate-700 text-white text-xs font-black rounded-xl p-3 outline-none focus:border-blue-400" value={activeSiteId} onChange={e => setActiveSiteId(e.target.value)}>
-                      <option value="">출역을 작성할 현장을 지정하세요...</option>
-                      {siteProperties.map(s => <option key={s.id} value={s.id}>{s.siteName} ({s.corp})</option>)}
-                    </select>
+                  {/* 🎯 [가독성 개선 대수술] 캡처본에 있던 컴컴한 블루 그라데이션 명암을 100% 제거! 
+                      깨끗하고 시인성이 극대화된 깔끔한 고대비 화이트 인라인 카드로 변경 완료. */}
+                  <section className="bg-white p-5 rounded-3xl shadow-sm border border-slate-300/80 space-y-4">
+                    <div>
+                      <label className="block text-xs font-black text-blue-800 uppercase tracking-wider mb-2">1단계: 오늘의 가동 대상 현장 지정 *</label>
+                      <select 
+                        className="w-full bg-slate-50 border-2 border-slate-300 text-slate-900 text-xs font-black rounded-xl p-3 shadow-inner outline-none focus:border-blue-600 focus:bg-white transition-all" 
+                        value={activeSiteId} 
+                        onChange={e => setActiveSiteId(e.target.value)}
+                      >
+                        <option value="">출역을 작성할 현장을 지정하세요...</option>
+                        {siteProperties.map(s => <option key={s.id} value={s.id}>{s.siteName} ({s.corp})</option>)}
+                      </select>
+                    </div>
 
                     {currentSelectedSiteDetail && (
-                      <div className="bg-black/30 rounded-2xl p-3.5 text-xs font-mono text-slate-300 space-y-1 border border-white/10 animate-fade-in">
-                        <div className="flex justify-between"><span>🏢 계약 소속 법인:</span><span className="text-white font-bold">{currentSelectedSiteDetail.corp}</span></div>
-                        <div className="flex justify-between"><span>⚡ 대표 계약 공종:</span><span className="text-yellow-400 font-bold">{currentSelectedSiteDetail.constType}</span></div>
-                        <div className="flex justify-between"><span>👤 관리 소장 전령:</span><span className="text-white font-bold text-right truncate max-w-[140px]">{currentSelectedSiteDetail.manager} 소장</span></div>
+                      <div className="bg-slate-50 rounded-2xl p-4 text-xs font-mono text-slate-700 space-y-2 border border-slate-200 shadow-sm animate-fade-in">
+                        <div className="flex justify-between border-b border-slate-200/60 pb-1"><span>🏢 계약 소속 법인:</span><span className="text-slate-900 font-black">{currentSelectedSiteDetail.corp}</span></div>
+                        <div className="flex justify-between border-b border-slate-200/60 pb-1"><span>⚡ 대표 계약 공종:</span><span className="text-blue-700 font-black">{currentSelectedSiteDetail.constType}</span></div>
+                        <div className="flex justify-between"><span>👤 관리 소장 전령:</span><span className="text-slate-900 font-black">{currentSelectedSiteDetail.manager} 소장</span></div>
                       </div>
                     )}
                   </section>
 
                   {activeSiteId && (
                     <section className="bg-white p-4 sm:p-5 rounded-3xl shadow-sm border space-y-4 animate-fade-in">
-                      <span className="text-xs font-black text-slate-400 uppercase tracking-wider block">2단계: 오늘 내 현장 출근 인원 실시간 터치 배치</span>
-                      <input type="text" placeholder="🔎 이름 실시간 퀵 검색..." className="w-full bg-slate-50 border text-xs font-bold p-3 rounded-xl outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                      <span className="text-xs font-black text-slate-800 uppercase tracking-wider block">2단계: 오늘 내 현장 출근 인원 터치 배치</span>
+                      <input type="text" placeholder="🔎 이름 실시간 퀵 검색..." className="w-full bg-slate-50 border-2 border-slate-200 text-xs font-bold p-3 rounded-xl outline-none focus:border-blue-500" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 max-h-[280px] overflow-y-auto pt-1 pr-1">
                         {filteredWorkersForSearch.map(worker => {
                           const isAttached = todayActiveWorkers.find(w => w.id === worker.id)?.timeSlots.some(s => s.siteId === activeSiteId);
                           return (
-                            <button key={worker.id} onClick={() => handleToggleWorkerToActiveSite(worker)} className={`text-xs font-bold px-3 py-2.5 rounded-xl border transition-all truncate text-center ${isAttached ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}>
+                            <button key={worker.id} onClick={() => handleToggleWorkerToActiveSite(worker)} className={`text-xs font-bold px-2 py-2.5 rounded-xl border-2 transition-all truncate text-center ${isAttached ? 'bg-blue-600 border-blue-700 text-white shadow-md' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-200/60'}`}>
                               {isAttached ? '✓ ' : '+ '} {worker.name}
                             </button>
                           );
@@ -480,7 +486,7 @@ export default function FieldManagerApp() {
 
               {/* 오른쪽 섹션 (선택된 인원 시간 입력창 및 총괄 관제 뷰어) */}
               <div className={`${isFinanceAccessible ? 'lg:col-span-12 max-w-5xl mx-auto w-full' : 'lg:col-span-7'} space-y-3`}>
-                <div className="bg-slate-200/60 rounded-2xl px-2 py-1 text-xs font-black text-slate-500 tracking-wider">
+                <div className="bg-slate-200/60 rounded-2xl px-2 py-1.5 text-xs font-black text-slate-700 tracking-wider">
                   {isFinanceAccessible ? '📊 전사 실시간 분할 안분 취합 현황부' : '3단계: 투입 근로자별 시간 기입 및 최종 확인 구역'}
                 </div>
 
@@ -500,7 +506,7 @@ export default function FieldManagerApp() {
                         <div className="flex justify-between items-center border-b pb-2.5 gap-2">
                           <div className="truncate">
                             <span className="text-base sm:text-lg font-black text-slate-900 mr-2">{worker.name}</span>
-                            <span className="text-[10px] sm:text-xs text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[140px] inline-block align-middle">소속: {worker.corp}</span>
+                            <span className="text-[10px] sm:text-xs text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[140px] inline-block align-middle">소속: {worker.corp}</span>
                           </div>
                           {!isFinanceAccessible && <button onClick={() => handleToggleWorkerToActiveSite(worker)} className="text-xs text-red-500 font-bold shrink-0 hover:underline">현장제외</button>}
                         </div>
@@ -521,7 +527,6 @@ export default function FieldManagerApp() {
 
                                   return (
                                     <div key={slot.slotId} className="bg-white p-3 rounded-xl border border-slate-200/80 text-xs space-y-2 relative shadow-sm">
-                                      {/* 공사명 완전 노출형 패치 */}
                                       <div className="flex justify-between font-black text-slate-700 text-[11px] border-b pb-1 gap-2">
                                         <span className="block text-slate-800 leading-tight pr-1">📍 {fullVisibleSiteName}</span>
                                         <span className="text-[9px] text-blue-600 bg-blue-50 px-1 rounded h-fit shrink-0">{slot.constType}</span>
@@ -535,12 +540,12 @@ export default function FieldManagerApp() {
                                       ) : (
                                         <div className="grid grid-cols-2 gap-2 pt-0.5">
                                           <div>
-                                            <label className="block text-[9px] text-slate-400 font-bold mb-0.5 text-center">주간 시간</label>
-                                            <input type="number" min={0} max={8} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.baseHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} />
+                                            <label className="block text-[9px] text-slate-500 font-bold mb-0.5 text-center">주간 시간</label>
+                                            <input type="number" min={0} max={8} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-300 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.baseHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'baseHours', Number(e.target.value))} />
                                           </div>
                                           <div>
-                                            <label className="block text-[9px] text-slate-400 font-bold mb-0.5 text-center">연장 시간</label>
-                                            <input type="number" min={0} max={24} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.otHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} />
+                                            <label className="block text-[9px] text-slate-500 font-bold mb-0.5 text-center">연장 시간</label>
+                                            <input type="number" min={0} max={24} disabled={slot.siteId !== activeSiteId} className={`w-full text-center text-xs font-black border-2 rounded-lg p-1.5 outline-none ${slot.siteId === activeSiteId ? 'bg-white border-slate-300 focus:border-blue-500' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`} value={slot.otHours} onChange={e => handleUpdateSlotHours(worker.id, slot.siteId, 'otHours', Number(e.target.value))} />
                                           </div>
                                         </div>
                                       )}
@@ -561,11 +566,11 @@ export default function FieldManagerApp() {
                           </div>
                         )}
 
-                        {/* 당일 건강상태 연동 체크박스 프레임 (유령 파편 코드 원천 삭제 완비) */}
+                        {/* 당일 건강상태 체크박스 프레임 */}
                         <div className="bg-slate-50 p-2.5 rounded-xl border text-xs space-y-2">
                           <label className="flex justify-between items-center cursor-pointer">
                             <span className={worker.healthOk ? 'text-slate-600 font-bold' : 'text-red-500 font-black'}>🩺 당일 건강 상태 정상 서명 확인</span>
-                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" checked={worker.healthOk} onChange={() => setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { ...w, healthOk: !w.healthOk } : w))} />
+                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-2" checked={worker.healthOk} onChange={() => setTodayActiveWorkers(todayActiveWorkers.map(w => w.id === worker.id ? { ...w, healthOk: !w.healthOk } : w))} />
                           </label>
                         </div>
                       </div>
@@ -640,7 +645,7 @@ export default function FieldManagerApp() {
                 </div>
               </div>
             ) : (
-              <div className="text-center text-[10px] sm:text-xs font-bold text-slate-400 bg-slate-50 p-2.5 rounded-xl border border-dashed">🔒 상세 인건비 기성 및 다중 분할 내역 통계 비공개 (TOTAL ADMIN ONLY)</div>
+              <div className="text-center text-[10px] sm:text-xs font-bold text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-dashed">🔒 상세 인건비 기성 및 다중 분할 내역 통계 비공개 (TOTAL ADMIN ONLY)</div>
             )}
 
             <div className="max-w-md mx-auto">
